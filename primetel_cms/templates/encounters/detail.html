@@ -168,10 +168,20 @@
             {% endif %}
         </div>
 
+        {% if phq9_q9_red_flag %}
+        <div class="rounded-2xl border-2 border-danger-400 bg-danger-50 p-5 shadow-card" id="phq9-q9-flag" role="alert">
+            <p class="text-sm font-bold text-danger-700">⚠ {% trans "PHQ-9 self-harm risk flag" %}</p>
+            <p class="text-xs text-danger-700 mt-1">{% trans "Question 9 score is non-zero. Per WHO mhGAP, immediate clinical review for suicide/self-harm risk is indicated." %}</p>
+        </div>
+        {% endif %}
+
         <!-- Prescriptions Panel (summary) -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
-            <div class="px-5 py-3 border-b border-slate-100">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Prescriptions" %}</h3>
+                {% if encounter.status != "FINALISED" %}
+                <a href="{% url 'pharmacy:rx_prescribe' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-prescribe">+ {% trans "Prescribe" %}</a>
+                {% endif %}
             </div>
             <div class="p-5">
                 {% if prescriptions %}
@@ -194,17 +204,20 @@
 
         <!-- Lab Orders Panel (summary) -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
-            <div class="px-5 py-3 border-b border-slate-100">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Lab Orders" %}</h3>
+                {% if encounter.status != "FINALISED" %}
+                <a href="{% url 'lab:order_new' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-lab-order">+ {% trans "Order test" %}</a>
+                {% endif %}
             </div>
             <div class="p-5">
                 {% if lab_orders %}
                 <div class="space-y-2">
                     {% for order in lab_orders %}
-                    <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                    <a href="{% url 'lab:order_detail' order.pk %}" class="flex items-center justify-between p-2 bg-slate-50 rounded-lg hover:bg-slate-100">
                         <p class="text-xs font-medium text-slate-800">{{ order.test }}</p>
                         <span class="badge badge-{{ order.status|lower }} text-[10px]">{{ order.get_status_display }}</span>
-                    </div>
+                    </a>
                     {% endfor %}
                 </div>
                 {% else %}

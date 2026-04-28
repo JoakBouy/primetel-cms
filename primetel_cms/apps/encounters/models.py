@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils.translation import gettext_lazy as _
 from simple_history.models import HistoricalRecords
 
@@ -134,25 +134,34 @@ class Encounter(TimestampedModel):
     def finalise(self, user=None):
         """Lock the encounter. After this, only amend is allowed."""
         from django.utils import timezone
-        if self.status == "FINALISED":
-            raise ValidationError(_("Encounter is already finalised."))
-        if not self.chief_complaint:
-            raise ValidationError(_("Chief complaint is required before finalising."))
-        if not self.assessment:
-            raise ValidationError(_("Assessment (SOAP-A) is required before finalising."))
-        self.status = "FINALISED"
-        self.finalised_at = timezone.now()
-        self.ended_at = timezone.now()
-        self.updated_by = user
-        self.save()
+        with transaction.atomic():
+            locked = Encounter.objects.select_for_update().get(pk=self.pk)
+            if locked.status == "FINALISED":
+                raise ValidationError(_("Encounter is already finalised."))
+            if not locked.chief_complaint:
+                raise ValidationError(_("Chief complaint is required before finalising."))
+            if not locked.assessment:
+                raise ValidationError(_("Assessment (SOAP-A) is required before finalising."))
+            locked.status = "FINALISED"
+            locked.finalised_at = timezone.now()
+            locked.ended_at = timezone.now()
+            locked.updated_by = user
+            locked.save()
+            # Refresh self to reflect committed state
+            self.status = locked.status
+            self.finalised_at = locked.finalised_at
+            self.ended_at = locked.ended_at
 
     def amend(self, user=None):
         """Reopen a finalised encounter — creates a history entry."""
-        if self.status != "FINALISED":
-            raise ValidationError(_("Only finalised encounters can be amended."))
-        self.status = "AMENDED"
-        self.updated_by = user
-        self.save()
+        with transaction.atomic():
+            locked = Encounter.objects.select_for_update().get(pk=self.pk)
+            if locked.status != "FINALISED":
+                raise ValidationError(_("Only finalised encounters can be amended."))
+            locked.status = "AMENDED"
+            locked.updated_by = user
+            locked.save()
+            self.status = locked.status
 
 
 class Vitals(TimestampedModel):

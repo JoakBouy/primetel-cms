@@ -39,3 +39,6 @@ ruff>=0.5
 
 # CORS (for API if needed)
 django-cors-headers>=4.4
+
+# Optional: error reporting (no-op if SENTRY_DSN unset)
+sentry-sdk>=2.10

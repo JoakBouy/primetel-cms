@@ -29,7 +29,14 @@
                 <td class="text-sm text-slate-600">{{ rx.dose }} — {{ rx.frequency }}</td>
                 <td class="text-sm font-semibold">{{ rx.quantity }}</td>
                 <td class="text-xs text-slate-400">{{ rx.prescribed_at|timesince }} {% trans "ago" %}</td>
-                <td class="text-right"><span class="badge badge-prescribed">{% trans "Pending" %}</span></td>
+                <td class="text-right">
+                    <a href="{% url 'pharmacy:rx_dispense' rx.pk %}" class="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-600 text-white text-xs font-medium rounded-lg hover:bg-primary-700" id="rx-dispense-{{ rx.pk }}">
+                        {% trans "Dispense" %}
+                    </a>
+                    <a href="{% url 'pharmacy:rx_print' rx.pk %}" target="_blank" class="ml-1 inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-medium rounded-lg hover:bg-slate-50">
+                        {% trans "Print" %}
+                    </a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

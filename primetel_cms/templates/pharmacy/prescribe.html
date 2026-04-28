@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Prescribe" %}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">{% trans "Prescribe" %}</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ encounter.patient.full_name }} — {{ encounter.patient.patient_number }}</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 max-w-2xl">
+    {% if encounter.patient.has_allergies %}
+    <div class="mb-4 rounded-xl bg-warning-50 border border-warning-200 p-4 text-sm">
+        <p class="font-semibold text-warning-700">{% trans "Patient-reported allergies" %}</p>
+        <p class="text-warning-600 mt-1 whitespace-pre-line">{{ encounter.patient.allergies }}</p>
+    </div>
+    {% endif %}
+
+    {% if allergy_match %}
+    <div class="mb-4 rounded-xl bg-danger-50 border border-danger-300 p-4 text-sm" role="alert" id="allergy-alert">
+        <p class="font-bold text-danger-700">{% trans "ALLERGY ALERT" %}</p>
+        <p class="text-danger-700 mt-1">{{ allergy_match }}</p>
+        <p class="text-danger-600 mt-2 text-xs">{% trans "To proceed, tick the override box below and document a clinical reason. The override will be recorded in the prescription." %}</p>
+    </div>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Drug" %}</label>
+            <select name="drug" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-drug">
+                <option value="">{% trans "Select…" %}</option>
+                {% for d in drugs %}
+                <option value="{{ d.pk }}" {% if form_data.drug == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.generic_name }} {{ d.strength }} ({{ d.get_form_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Dose" %}</label>
+                <input type="text" name="dose" required value="{{ form_data.dose|default:'' }}" placeholder="1 tablet" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-dose">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Frequency" %}</label>
+                <input type="text" name="frequency" required value="{{ form_data.frequency|default:'' }}" placeholder="BID" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-frequency">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Duration (days)" %}</label>
+                <input type="number" name="duration_days" required min="1" value="{{ form_data.duration_days|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-duration">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Quantity" %}</label>
+                <input type="number" name="quantity" required min="1" value="{{ form_data.quantity|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-quantity">
+            </div>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Instructions (optional)" %}</label>
+            <textarea name="instructions" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="prescribe-instructions">{{ form_data.instructions|default:'' }}</textarea>
+        </div>
+
+        {% if allergy_match %}
+        <div class="rounded-xl border border-danger-200 bg-danger-50/50 p-4 space-y-3">
+            <label class="flex items-start gap-2 text-sm text-danger-700 font-medium">
+                <input type="checkbox" name="allergy_override" required id="allergy-override-check">
+                <span>{% trans "I acknowledge the allergy alert and accept clinical responsibility for proceeding." %}</span>
+            </label>
+            <div>
+                <label class="block text-xs font-semibold text-danger-700 mb-1">{% trans "Override reason (required)" %}</label>
+                <textarea name="override_reason" rows="2" required class="w-full rounded-xl border border-danger-300 px-3 py-2 text-sm bg-white" id="override-reason"></textarea>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700" id="prescribe-submit">
+                {% trans "Add prescription" %}
+            </button>
+            <a href="{% url 'encounters:detail' encounter.pk %}" class="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800">{% trans "Cancel" %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

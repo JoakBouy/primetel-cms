@@ -72,6 +72,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
+    "apps.core.middleware.IdleSessionTimeoutMiddleware",
     "apps.core.middleware.AuditLogMiddleware",
     "axes.middleware.AxesMiddleware",
 ]
@@ -133,8 +134,11 @@ AUTH_PASSWORD_VALIDATORS = [
 # ──────────────────────────────────────────────
 # Sessions
 # ──────────────────────────────────────────────
-SESSION_COOKIE_AGE = 28800  # 8 hours (one clinic shift)
+SESSION_COOKIE_AGE = 28800  # 8 hours (one clinic shift) — absolute upper bound
 SESSION_SAVE_EVERY_REQUEST = True
+# Idle re-authentication window. Shorter than SESSION_COOKIE_AGE: protects
+# shared workstations where a user walks away mid-shift.
+IDLE_SESSION_SECONDS = env.int("IDLE_SESSION_SECONDS", default=15 * 60)
 
 # ──────────────────────────────────────────────
 # Internationalisation

@@ -7,8 +7,8 @@
     <meta name="description" content="Primetel Clinical Management System — Monduli Clinic, Arusha, Tanzania">
     <title>{% block title %}{% trans "Dashboard" %}{% endblock %} — {{ SITE_NAME }}</title>
 
-    <!-- Tailwind CSS 3.4 CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS 3.4 (vendored locally — clinic connectivity may be intermittent) -->
+    <script src="{% static 'vendor/tailwind-3.4.cdn.js' %}"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -105,11 +105,11 @@
         }
     </script>
 
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <!-- HTMX (vendored) -->
+    <script src="{% static 'vendor/htmx-1.9.12.min.js' %}"></script>
 
-    <!-- Alpine.js -->
-    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <!-- Alpine.js (vendored) -->
+    <script defer src="{% static 'vendor/alpine-3.14.3.min.js' %}"></script>
 
     <!-- Chart.js (for dashboard) -->
     {% block extra_head_js %}{% endblock %}

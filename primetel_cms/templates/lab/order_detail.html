@@ -1,18 +1,93 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block title %}{{ order.test.name }}{% endblock %}
-{% block page_header %}<div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">{{ order.test.code }} — {{ order.test.name }}</h1><p class="text-sm text-slate-500">{% trans "Patient" %}: {{ order.encounter.patient.full_name }} · {{ order.get_status_display }}</p></div>{% endblock %}
-{% block content %}
-<div class="max-w-xl mx-auto bg-white rounded-2xl border border-slate-100 shadow-card p-6">
-    <div class="space-y-3 text-sm">
-        <div class="flex justify-between"><span class="text-slate-500">{% trans "Ordered by" %}</span><span class="font-medium">{{ order.ordered_by.full_name }}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">{% trans "Ordered at" %}</span><span>{{ order.ordered_at|date:"d/m/Y H:i" }}</span></div>
-        <div class="flex justify-between"><span class="text-slate-500">{% trans "Specimen" %}</span><span>{{ order.test.get_specimen_type_display }}</span></div>
-        {% if order.result %}
-        <hr class="my-4">
-        <div class="flex justify-between"><span class="text-slate-500">{% trans "Result" %}</span><span class="font-semibold">{{ order.result.value_numeric|default:order.result.value_text }}</span></div>
-        {% if order.result.flag %}<div class="flex justify-between"><span class="text-slate-500">{% trans "Flag" %}</span><span class="badge badge-{{ order.result.flag|lower }}">{{ order.result.get_flag_display }}</span></div>{% endif %}
-        {% endif %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{{ order.test.code }} — {{ order.test.name }}</h1>
+        <p class="text-sm text-slate-500">{% trans "Patient" %}: {{ order.encounter.patient.full_name }} · {{ order.get_status_display }}</p>
     </div>
+    <div class="flex gap-2">
+        <a href="{% url 'lab:print' order.pk %}" target="_blank" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg hover:shadow-sm" id="lab-print">{% trans "Print" %}</a>
+        <a href="{% url 'lab:queue' %}" class="text-sm text-slate-500 hover:text-slate-700 self-center">{% trans "← Back" %}</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">{% trans "Order details" %}</h2>
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+            <dt class="text-slate-500">{% trans "Ordered by" %}</dt><dd>{{ order.ordered_by.full_name|default:order.ordered_by.username }}</dd>
+            <dt class="text-slate-500">{% trans "Ordered at" %}</dt><dd>{{ order.ordered_at|date:"d/m/Y H:i" }}</dd>
+            <dt class="text-slate-500">{% trans "Specimen" %}</dt><dd>{{ order.test.get_specimen_type_display }}</dd>
+            {% if order.test.reference_range_min or order.test.reference_range_max %}
+            <dt class="text-slate-500">{% trans "Reference range" %}</dt>
+            <dd>{{ order.test.reference_range_min|default:"–" }} to {{ order.test.reference_range_max|default:"–" }} {{ order.test.reference_unit }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">{% trans "Workflow" %}</h2>
+        <div class="flex flex-wrap gap-2">
+            {% if order.status == "ORDERED" %}
+            <form method="post" action="{% url 'lab:collect' order.pk %}">
+                {% csrf_token %}
+                <button class="px-3 py-1.5 bg-warning-500 text-white text-sm rounded-lg" id="lab-collect">{% trans "Mark sample collected" %}</button>
+            </form>
+            {% endif %}
+            {% if order.status == "RESULTED" %}
+            <form method="post" action="{% url 'lab:review' order.pk %}">
+                {% csrf_token %}
+                <button class="px-3 py-1.5 bg-success-500 text-white text-sm rounded-lg" id="lab-review">{% trans "Mark reviewed" %}</button>
+            </form>
+            {% endif %}
+            {% if order.status == "REVIEWED" %}
+            <span class="text-success-600 text-sm">{% trans "Reviewed by clinician" %} · {{ order.reviewed_at|date:"d/m/Y H:i" }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if order.status not in "REVIEWED,CANCELLED" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">{% if result %}{% trans "Update result" %}{% else %}{% trans "Enter result" %}{% endif %}</h2>
+        <form method="post" action="{% url 'lab:result_enter' order.pk %}" class="space-y-3">
+            {% csrf_token %}
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Numeric value" %}</label>
+                    <input type="text" name="value_numeric" value="{{ result.value_numeric|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="result-numeric">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Unit / text result" %}</label>
+                    <input type="text" name="value_text" value="{{ result.value_text|default:'' }}" placeholder="{{ order.test.reference_unit }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="result-text">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Notes" %}</label>
+                <textarea name="notes" rows="2" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="result-notes">{{ result.notes|default:'' }}</textarea>
+            </div>
+            <button class="px-4 py-2 bg-primary-600 text-white text-sm rounded-xl" id="result-save">{% trans "Save result" %}</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if result %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">{% trans "Current result" %}</h2>
+        <p class="text-2xl font-bold text-slate-800">{{ result.value_numeric|default:result.value_text }}</p>
+        {% if result.flag %}
+        <span class="inline-block mt-2 px-2 py-0.5 rounded text-xs font-semibold
+            {% if result.flag == 'CRITICAL' %}bg-danger-100 text-danger-700
+            {% elif result.flag == 'HIGH' or result.flag == 'LOW' %}bg-warning-100 text-warning-700
+            {% else %}bg-success-100 text-success-700{% endif %}">{{ result.get_flag_display }}</span>
+        {% endif %}
+        <p class="text-xs text-slate-400 mt-2">{% trans "Performed by" %} {{ result.performed_by.full_name|default:result.performed_by.username }}</p>
+        {% if result.notes %}<p class="text-sm text-slate-600 mt-2 whitespace-pre-line">{{ result.notes }}</p>{% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

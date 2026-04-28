@@ -1,9 +1,19 @@
 """
-Primetel CMS — Audit Log Middleware
-Logs every authenticated request to AuditLog.
-Patient chart views are logged as READ with entity_type='Patient'.
+Primetel CMS — Core middleware.
+
+- AuditLogMiddleware: logs every authenticated request to AuditLog.
+- IdleTimeoutMiddleware: forces re-authentication after a period of inactivity,
+  separate from the absolute SESSION_COOKIE_AGE. Defaults to 15 minutes; tune
+  via settings.IDLE_SESSION_SECONDS.
 """
 import re
+import time
+
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+from django.utils.translation import gettext_lazy as _
 
 from .models import AuditLog
 
@@ -92,3 +102,34 @@ class AuditLogMiddleware:
         if x_forwarded_for:
             return x_forwarded_for.split(",")[0].strip()
         return request.META.get("REMOTE_ADDR")
+
+
+# Paths exempted from idle-timeout (authentication itself, language, health).
+_IDLE_EXEMPT = ("/login/", "/logout/", "/healthz/", "/i18n/", "/static/", "/media/", "/sw.js")
+
+
+class IdleSessionTimeoutMiddleware:
+    """
+    Logs the user out after `settings.IDLE_SESSION_SECONDS` of inactivity.
+    The SESSION_COOKIE_AGE remains the absolute upper bound; this is the
+    *idle* bound for shared clinical workstations.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.idle_seconds = int(getattr(settings, "IDLE_SESSION_SECONDS", 15 * 60))
+
+    def __call__(self, request):
+        if (
+            request.user.is_authenticated
+            and not any(request.path.startswith(p) for p in _IDLE_EXEMPT)
+        ):
+            now = int(time.time())
+            last = request.session.get("_last_activity")
+            if last is not None and now - int(last) > self.idle_seconds:
+                logout(request)
+                messages.info(request, _("You were signed out due to inactivity."))
+                return redirect("login")
+            # Update timestamp; SESSION_SAVE_EVERY_REQUEST flushes it.
+            request.session["_last_activity"] = now
+        return self.get_response(request)

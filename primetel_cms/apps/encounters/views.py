@@ -5,7 +5,7 @@ SOAP notes, vitals, diagnoses, prescriptions, lab orders, finalise/amend.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -15,6 +15,26 @@ from apps.accounts.decorators import requires_role
 from apps.patients.models import Patient
 
 from .models import Encounter, Vitals, Diagnosis
+
+
+def _get_encounter_for_user(user, pk):
+    """
+    Resolve an encounter respecting mental-health access rules.
+    Unauthorised users get a 404 (not 403), so the existence of MH
+    encounters is not leaked through ID enumeration.
+    """
+    qs = Encounter.objects.for_user(user)
+    try:
+        return qs.get(pk=pk)
+    except Encounter.DoesNotExist:
+        raise Http404("Encounter not found")
+
+
+def _ensure_editable(encounter):
+    """Raise if the encounter is locked. Use before any write."""
+    if encounter.status == "FINALISED":
+        from django.core.exceptions import ValidationError
+        raise ValidationError(_("Encounter is finalised. Use Amend to reopen it."))
 
 
 @requires_role("CLINICIAN", "ADMIN")
@@ -60,11 +80,8 @@ def encounter_new_mh(request):
 @login_required
 def encounter_detail(request, pk):
     """Encounter detail — the main clinician screen (SOAP form)."""
-    encounter = get_object_or_404(Encounter, pk=pk)
-    # Access restriction for mental health encounters
-    if encounter.encounter_type == "MENTAL_HEALTH":
-        if not request.user.has_role("COUNSELLOR", "ADMIN") and encounter.clinician != request.user:
-            raise PermissionDenied
+    encounter = _get_encounter_for_user(request.user, pk)
+    mh_assessment = getattr(encounter, "mental_health_assessment", None)
     return render(request, "encounters/detail.html", {
         "page_title": f"{_('Encounter')} — {encounter.patient.full_name}",
         "encounter": encounter,
@@ -73,6 +90,14 @@ def encounter_detail(request, pk):
         "diagnoses": encounter.diagnoses.all(),
         "prescriptions": encounter.prescriptions.all() if hasattr(encounter, 'prescriptions') else [],
         "lab_orders": encounter.lab_orders.all() if hasattr(encounter, 'lab_orders') else [],
+        "mh_assessment": mh_assessment,
+        "phq9_q9_red_flag": (
+            mh_assessment is not None
+            and mh_assessment.instrument == "PHQ9"
+            and isinstance(mh_assessment.responses, list)
+            and len(mh_assessment.responses) >= 9
+            and mh_assessment.responses[8] >= 1
+        ),
     })
 
 
@@ -80,7 +105,7 @@ def encounter_detail(request, pk):
 @requires_role("CLINICIAN", "COUNSELLOR", "ADMIN")
 def encounter_save_draft(request, pk):
     """Autosave SOAP note — HTMX endpoint."""
-    encounter = get_object_or_404(Encounter, pk=pk)
+    encounter = _get_encounter_for_user(request.user, pk)
     if encounter.status == "FINALISED":
         return JsonResponse({"error": "Encounter is finalised"}, status=400)
     for field in ["chief_complaint", "history_of_presenting_illness", "subjective", "objective", "assessment", "plan"]:
@@ -98,8 +123,13 @@ def encounter_save_draft(request, pk):
 @requires_role("NURSE", "CLINICIAN", "ADMIN")
 def encounter_add_vitals(request, pk):
     """Add vitals to an encounter."""
-    encounter = get_object_or_404(Encounter, pk=pk)
-    vitals = Vitals.objects.create(
+    encounter = _get_encounter_for_user(request.user, pk)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=pk)
+    Vitals.objects.create(
         encounter=encounter, recorded_by=request.user, created_by=request.user,
         blood_pressure_systolic=request.POST.get("bp_systolic") or None,
         blood_pressure_diastolic=request.POST.get("bp_diastolic") or None,
@@ -119,7 +149,12 @@ def encounter_add_vitals(request, pk):
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_add_diagnosis(request, pk):
     """Add a diagnosis to an encounter."""
-    encounter = get_object_or_404(Encounter, pk=pk)
+    encounter = _get_encounter_for_user(request.user, pk)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=pk)
     Diagnosis.objects.create(
         encounter=encounter, created_by=request.user,
         icd10_code=request.POST.get("icd10_code", ""),
@@ -135,7 +170,7 @@ def encounter_add_diagnosis(request, pk):
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_finalise(request, pk):
     """Finalise an encounter — lock it."""
-    encounter = get_object_or_404(Encounter, pk=pk)
+    encounter = _get_encounter_for_user(request.user, pk)
     try:
         encounter.finalise(user=request.user)
         messages.success(request, _("Encounter finalised successfully."))
@@ -148,7 +183,7 @@ def encounter_finalise(request, pk):
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_amend(request, pk):
     """Amend a finalised encounter."""
-    encounter = get_object_or_404(Encounter, pk=pk)
+    encounter = _get_encounter_for_user(request.user, pk)
     try:
         encounter.amend(user=request.user)
         messages.success(request, _("Encounter reopened for amendment."))

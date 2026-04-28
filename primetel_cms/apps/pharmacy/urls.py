@@ -10,4 +10,7 @@ urlpatterns = [
     path("queue/", views.rx_queue, name="rx_queue"),
     path("stock/", views.stock_list, name="stock"),
     path("drugs/<uuid:pk>/", views.drug_detail, name="drug_detail"),
+    path("rx/<uuid:pk>/dispense/", views.rx_dispense, name="rx_dispense"),
+    path("rx/<uuid:pk>/print/", views.rx_print, name="rx_print"),
+    path("encounters/<uuid:encounter_pk>/prescribe/", views.rx_prescribe, name="rx_prescribe"),
 ]

@@ -1,0 +1,38 @@
+{% load i18n %}<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Lab — {{ order.encounter.patient.full_name }}</title>
+<style>
+@page { size: A5; margin: 14mm; }
+body { font-family: Helvetica, Arial, sans-serif; color: #1a202c; font-size: 11pt; line-height: 1.4; }
+h1 { font-size: 14pt; margin: 0 0 2mm 0; color: #8B1820; }
+.muted { color: #64748b; font-size: 9pt; }
+.box { border: 1px solid #cbd5e1; border-radius: 4px; padding: 4mm; margin-bottom: 4mm; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 2mm 1mm; border-bottom: 1px solid #e2e8f0; font-size: 10pt; text-align: left; }
+.flag-CRITICAL { color: #9B2C2C; font-weight: bold; }
+.flag-HIGH, .flag-LOW { color: #B7791F; font-weight: bold; }
+.flag-NORMAL { color: #2F855A; }
+</style></head><body>
+<h1>Primetel Health — {% trans "Laboratory" %}</h1>
+<p class="muted">{{ now|date:"d/m/Y H:i" }} · Order #{{ order.pk|stringformat:"s"|slice:":8" }}</p>
+<div class="box">
+    <strong>{% trans "Patient" %}:</strong> {{ order.encounter.patient.full_name }}
+    &nbsp; <strong>{% trans "No" %}:</strong> {{ order.encounter.patient.patient_number }}
+    &nbsp; <strong>{% trans "Sex" %}:</strong> {{ order.encounter.patient.sex_display }}
+    &nbsp; <strong>{% trans "Age" %}:</strong> {{ order.encounter.patient.age_display }}
+</div>
+<table>
+    <thead><tr><th>{% trans "Test" %}</th><th>{% trans "Specimen" %}</th><th>{% trans "Result" %}</th><th>{% trans "Range" %}</th><th>{% trans "Flag" %}</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>{{ order.test.code }} — {{ order.test.name }}</td>
+            <td>{{ order.test.get_specimen_type_display }}</td>
+            <td>{% if result %}{{ result.value_numeric|default:result.value_text }} {{ order.test.reference_unit }}{% else %}—{% endif %}</td>
+            <td>{{ order.test.reference_range_min|default:"–" }}–{{ order.test.reference_range_max|default:"–" }}</td>
+            <td class="flag-{{ result.flag|default:'' }}">{{ result.get_flag_display|default:"—" }}</td>
+        </tr>
+    </tbody>
+</table>
+{% if result and result.notes %}<p style="margin-top:4mm"><strong>{% trans "Notes" %}:</strong><br>{{ result.notes|linebreaksbr }}</p>{% endif %}
+<p class="muted" style="margin-top:8mm">{% trans "Ordered by" %}: {{ order.ordered_by.full_name|default:order.ordered_by.username }} · {{ order.ordered_at|date:"d/m/Y H:i" }}</p>
+{% if result %}<p class="muted">{% trans "Performed by" %}: {{ result.performed_by.full_name|default:result.performed_by.username }} · {{ order.resulted_at|date:"d/m/Y H:i" }}</p>{% endif %}
+</body></html>

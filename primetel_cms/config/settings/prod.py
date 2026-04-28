@@ -5,6 +5,24 @@ import os
 
 from .base import *  # noqa: F401, F403
 
+# ─── Sentry (optional) ────────────────────────────────────────────
+SENTRY_DSN = env("SENTRY_DSN", default="")  # noqa: F405
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=float(env("SENTRY_TRACES_SAMPLE_RATE", default="0.0")),  # noqa: F405
+            send_default_pii=False,  # do not include PHI in error reports
+            environment=env("SENTRY_ENV", default="production"),  # noqa: F405
+        )
+    except ImportError:
+        # sentry-sdk is optional; skip gracefully if not installed.
+        pass
+
 DEBUG = False
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["cms.primetel.tech", "primetel-cms.onrender.com"])  # noqa: F405

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load i18n humanize %}
+{% load i18n humanize static %}
 
 {% block title %}{% trans "Dashboard" %}{% endblock %}
 
 {% block extra_head_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{% static 'vendor/chart-4.4.4.min.js' %}"></script>
 {% endblock %}
 
 {% block page_header %}

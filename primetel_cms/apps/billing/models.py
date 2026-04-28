@@ -128,10 +128,13 @@ class Payment(TimestampedModel):
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
+            # Lock the parent invoice so concurrent payments tally consistently.
+            inv = Invoice.objects.select_for_update().get(pk=self.invoice_id)
+            if inv.status in ("CANCELLED", "WAIVED"):
+                raise ValidationError(_("Cannot record a payment against a closed invoice."))
             super().save(*args, **kwargs)
-            inv = self.invoice
             inv.amount_paid_tzs = sum(p.amount_tzs for p in inv.payments.all())
-            if inv.amount_paid_tzs >= inv.total_tzs:
+            if inv.amount_paid_tzs >= inv.total_tzs and inv.total_tzs > 0:
                 inv.status = "PAID"
             elif inv.amount_paid_tzs > 0:
                 inv.status = "PARTIALLY_PAID"

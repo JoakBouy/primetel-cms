@@ -1,11 +1,12 @@
-const CACHE_NAME = 'primetel-cms-v1';
+const CACHE_NAME = 'primetel-cms-v2';
 const ASSETS_TO_CACHE = [
     '/',
     '/static/css/custom.css',
     '/static/img/logo.png',
-    'https://cdn.tailwindcss.com',
-    'https://unpkg.com/htmx.org@1.9.12',
-    'https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js'
+    '/static/vendor/tailwind-3.4.cdn.js',
+    '/static/vendor/htmx-1.9.12.min.js',
+    '/static/vendor/alpine-3.14.3.min.js',
+    '/static/vendor/chart-4.4.4.min.js'
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Order Lab Test" %}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">{% trans "Order Lab Test" %}</h1>
+    <p class="text-sm text-slate-500">{{ encounter.patient.full_name }} — {{ encounter.patient.patient_number }}</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+    <form method="post" class="space-y-3">
+        {% csrf_token %}
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Test" %}</label>
+            <select name="test" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="lab-test-select">
+                <option value="">{% trans "Select…" %}</option>
+                {% for t in tests %}
+                <option value="{{ t.pk }}">{{ t.code }} — {{ t.name }} ({{ t.get_specimen_type_display }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex gap-2 pt-2">
+            <button class="px-4 py-2 bg-primary-600 text-white text-sm rounded-xl" id="lab-order-submit">{% trans "Order test" %}</button>
+            <a href="{% url 'encounters:detail' encounter.pk %}" class="px-4 py-2 text-sm text-slate-600">{% trans "Cancel" %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
