@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% load i18n humanize %}
+
+{% block title %}{% trans "Dashboard" %}{% endblock %}
+
+{% block extra_head_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block page_header %}
+<div class="mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">
+                {% if user.role %}
+                    {% trans "Welcome back" %}, {{ user.full_name|default:user.username }}
+                {% else %}
+                    {% trans "Dashboard" %}
+                {% endif %}
+            </h1>
+            <p class="text-sm text-slate-500 mt-1">
+                {% now "l, d F Y" %} · Monduli Clinic, Arusha
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/patients/new/" class="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-400 hover:to-primary-500 text-white text-sm font-medium rounded-xl shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transition-all duration-200" id="btn-new-patient">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                {% trans "Register Patient" %}
+            </a>
+            <a href="/appointments/queue/" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-xl border border-slate-200 shadow-sm hover:shadow transition-all duration-200" id="btn-todays-queue">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {% trans "Today's Queue" %}
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  METRICS CARDS (Top Row)                            -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Patients Seen Today -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-patients-today">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+            <span class="text-xs font-medium text-success-500 bg-success-50 px-2 py-1 rounded-lg">{% trans "Today" %}</span>
+        </div>
+        <p class="text-3xl font-bold text-slate-800">{{ patients_seen_today }}</p>
+        <p class="text-xs text-slate-400 mt-1">{% trans "Patients seen" %}</p>
+    </div>
+
+    <!-- Revenue Today -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-revenue-today">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-success-50 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            </div>
+            <span class="text-xs font-medium text-primary-500 bg-primary-50 px-2 py-1 rounded-lg">TZS</span>
+        </div>
+        <p class="text-3xl font-bold text-slate-800">{{ revenue_today|floatformat:0|intcomma }}</p>
+        <p class="text-xs text-slate-400 mt-1">{% trans "Revenue collected" %}</p>
+    </div>
+
+    <!-- Prescriptions Dispensed -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-rx-dispensed">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-warning-50 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-slate-800">{{ rx_dispensed_today }}</p>
+        <p class="text-xs text-slate-400 mt-1">{% trans "Prescriptions dispensed" %}</p>
+    </div>
+
+    <!-- Pending Labs -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-pending-labs">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-slate-800">{{ pending_labs }}</p>
+        <p class="text-xs text-slate-400 mt-1">{% trans "Pending labs" %}</p>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  CHARTS ROW                                         -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Patient Volume Chart -->
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="chart-patient-volume">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h3 class="text-sm font-semibold text-slate-800">{% trans "Patient Volume" %}</h3>
+                <p class="text-xs text-slate-400 mt-0.5">{% trans "This week" %}</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5">
+                    <div class="w-2.5 h-2.5 bg-primary-500 rounded-full"></div>
+                    <span class="text-xs text-slate-500">{% trans "Patients" %}</span>
+                </div>
+            </div>
+        </div>
+        <canvas id="patientVolumeChart" height="200"></canvas>
+    </div>
+
+    <!-- Top Diagnoses -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="chart-top-diagnoses">
+        <h3 class="text-sm font-semibold text-slate-800 mb-1">{% trans "Top Diagnoses" %}</h3>
+        <p class="text-xs text-slate-400 mb-6">{% trans "This week" %}</p>
+        <div class="space-y-4">
+            <p class="text-xs text-slate-400 text-center py-8">{% trans "No data yet" %}</p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  BOTTOM ROW: Alerts & Quick Actions                 -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Low Stock Alert -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="panel-low-stock">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-danger-50 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-800">{% trans "Low Stock Items" %}</h3>
+            </div>
+            <a href="/pharmacy/stock/" class="text-xs text-primary-500 hover:text-primary-600 font-medium">{% trans "View All" %} →</a>
+        </div>
+        <div class="space-y-2">
+            {% if low_stock_drugs %}
+                {% for drug in low_stock_drugs %}
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <p class="text-sm font-medium text-slate-800">{{ drug.generic_name }}</p>
+                    <span class="text-xs font-bold text-danger-500">{{ drug.total_stock }} left</span>
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="text-xs text-slate-400 text-center py-4">{% trans "No low stock items" %}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Near-Expiry Items -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="panel-near-expiry">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-warning-50 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-800">{% trans "Near-Expiry Items" %}</h3>
+            </div>
+            <a href="/pharmacy/stock/" class="text-xs text-primary-500 hover:text-primary-600 font-medium">{% trans "View All" %} →</a>
+        </div>
+        <div class="space-y-2">
+            {% if near_expiry_batches %}
+                {% for batch in near_expiry_batches %}
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <p class="text-sm font-medium text-slate-800">{{ batch.drug.generic_name }} <span class="text-xs text-slate-400">({{ batch.batch_number }})</span></p>
+                    <span class="text-xs font-bold text-warning-500">{{ batch.expiry_date|date:"M Y" }}</span>
+                </div>
+                {% endfor %}
+            {% else %}
+            <p class="text-xs text-slate-400 text-center py-4">{% trans "No near-expiry items" %}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Patient Volume Chart
+    const ctx = document.getElementById('patientVolumeChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: {{ chart_labels|safe }},
+                datasets: [{
+                    label: '{% trans "Patients" %}',
+                    data: {{ chart_data|safe }},
+                    backgroundColor: 'rgba(204, 34, 41, 0.15)',
+                    borderColor: '#CC2229',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11 }, color: '#94a3b8' },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#f1f5f9' },
+                        ticks: { font: { size: 11 }, color: '#94a3b8', stepSize: 1 },
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

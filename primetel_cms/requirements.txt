@@ -1,0 +1,41 @@
+# Django core
+Django>=5.0,<5.3
+djangorestframework>=3.15
+django-environ>=0.11
+django-extensions>=3.2
+
+# Database
+psycopg2-binary>=2.9
+
+# Auth & Security
+django-axes>=6.4
+
+# Admin
+django-unfold>=0.30
+
+# Audit
+django-simple-history>=3.7
+
+# Static files
+whitenoise>=6.7
+
+# PDF generation
+weasyprint>=62
+
+# Image handling
+Pillow>=10.4
+
+# Server
+gunicorn>=22
+
+# Testing
+pytest>=8.2
+pytest-django>=4.8
+pytest-cov>=5.0
+factory-boy>=3.3
+
+# Code quality
+ruff>=0.5
+
+# CORS (for API if needed)
+django-cors-headers>=4.4

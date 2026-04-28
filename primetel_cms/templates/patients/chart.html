@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ patient.full_name }} — {% trans "Chart" %}{% endblock %}
+
+{% block sidebar %}
+<!-- Context sidebar: Patient chart tabs -->
+<div>
+    <div class="px-3 mb-2">
+        <p class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{% trans "This Patient" %}</p>
+    </div>
+    <nav class="space-y-1">
+        {% for tab_id, tab_label, tab_icon in tabs %}
+        <a href="?tab={{ tab_id }}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all {% if active_tab == tab_id %}active text-white{% else %}text-slate-600 hover:bg-slate-100{% endif %}"
+           id="tab-{{ tab_id }}">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ tab_icon|safe }}</svg>
+            {{ tab_label }}
+        </a>
+        {% endfor %}
+    </nav>
+</div>
+
+<div class="border-t border-slate-100 pt-4">
+    <p class="px-3 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{% trans "Quick Actions" %}</p>
+    <nav class="space-y-1">
+        <a href="/encounters/new/?patient={{ patient.pk }}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
+           id="sidebar-start-consult">
+            <div class="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </div>
+            {% trans "Anza Consult" %}
+        </a>
+        <a href="/appointments/new/?patient={{ patient.pk }}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
+           id="sidebar-book-apt">
+            <div class="w-8 h-8 rounded-lg bg-success-50 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            {% trans "Weka Miadi" %}
+        </a>
+        <a href="/billing/invoices/?patient={{ patient.pk }}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
+           id="sidebar-invoices">
+            <div class="w-8 h-8 rounded-lg bg-warning-50 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            </div>
+            {% trans "Tazama Risiti" %}
+        </a>
+        <a href="{% url 'patients:edit' patient.pk %}"
+           class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
+           id="sidebar-edit-patient">
+            <div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </div>
+            {% trans "Edit Record" %}
+        </a>
+    </nav>
+</div>
+{% endblock %}
+
+{% block page_header %}
+<!-- Patient Header Bar -->
+<div class="mb-6">
+    <div class="flex items-start gap-4">
+        <!-- Photo / Avatar -->
+        <div class="shrink-0">
+            {% if patient.photo %}
+            <img src="{{ patient.photo.url }}" alt="{{ patient.full_name }}"
+                 class="w-16 h-16 rounded-2xl object-cover shadow-md ring-2 ring-white">
+            {% else %}
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold shadow-md ring-2 ring-white">
+                {{ patient.full_name|first|upper }}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Identity info -->
+        <div class="flex-1 min-w-0">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                <h1 class="text-2xl font-bold text-slate-800 truncate">{{ patient.full_name }}</h1>
+                <span class="font-mono text-sm font-semibold text-primary-600 bg-primary-50 px-3 py-0.5 rounded-full shrink-0">{{ patient.patient_number }}</span>
+            </div>
+            <p class="text-sm text-slate-500">
+                {{ patient.age_display }} · {{ patient.get_sex_display }}
+                {% if patient.phone %} · <span class="font-mono">{{ patient.phone }}</span>{% endif %}
+                {% if patient.district %} · {{ patient.district }}, {{ patient.region }}{% endif %}
+            </p>
+
+            <!-- Flags -->
+            <div class="flex flex-wrap gap-2 mt-3" id="patient-flags">
+                {% if patient.is_minor %}
+                <span class="flag-pill flag-minor text-xs">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    {% trans "Mtoto" %}
+                </span>
+                {% endif %}
+                {% if patient.is_pregnant %}
+                <span class="flag-pill flag-pregnant text-xs">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a5 5 0 110 10A5 5 0 0112 2zm0 12c-5 0-9 2-9 4v2h18v-2c0-2-4-4-9-4z"/></svg>
+                    {% trans "Mjamzito" %}
+                </span>
+                {% endif %}
+                {% if patient.has_allergies %}
+                <span class="flag-pill flag-allergy text-xs">⚠ {% trans "Allergy" %}: {{ patient.allergies|truncatechars:30 }}</span>
+                {% endif %}
+                {% for cond in patient.chronic_conditions_list %}
+                <span class="flag-pill flag-chronic text-xs">{{ cond }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 overflow-x-auto" id="chart-tabs">
+    {% for tab_id, tab_label, _ in tabs %}
+    <a href="?tab={{ tab_id }}"
+       class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap {% if active_tab == tab_id %}bg-white text-slate-800 shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}"
+       id="tab-btn-{{ tab_id }}">
+        {{ tab_label }}
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    {% if active_tab == "timeline" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-timeline">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-sm font-semibold text-slate-800">{% trans "Clinical Timeline" %}</h3>
+        </div>
+        <div class="flex flex-col items-center py-12 text-center">
+            <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <p class="text-sm text-slate-500">{% trans "No clinical events recorded yet." %}</p>
+            <a href="/encounters/new/?patient={{ patient.pk }}" class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 text-sm font-medium rounded-xl hover:bg-primary-100 transition-colors" id="start-first-encounter">
+                {% trans "Start First Consultation" %}
+            </a>
+        </div>
+    </div>
+    {% elif active_tab == "encounters" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-encounters">
+        <p class="text-sm text-slate-500">{% trans "No encounters recorded." %}</p>
+    </div>
+    {% elif active_tab == "prescriptions" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-prescriptions">
+        <p class="text-sm text-slate-500">{% trans "No prescriptions recorded." %}</p>
+    </div>
+    {% elif active_tab == "labs" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-labs">
+        <p class="text-sm text-slate-500">{% trans "No lab orders recorded." %}</p>
+    </div>
+    {% elif active_tab == "invoices" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-invoices">
+        <p class="text-sm text-slate-500">{% trans "No invoices recorded." %}</p>
+    </div>
+    {% elif active_tab == "documents" %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-documents">
+        <p class="text-sm text-slate-500">{% trans "No documents uploaded." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Invoices" %}{% endblock %}
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Invoices" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{% trans "Manage patient invoices and payments" %}</p>
+    </div>
+</div>
+<!-- Status Filters -->
+<div class="flex gap-2 mb-4 overflow-x-auto">
+    <a href="{% url 'billing:invoice_list' %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if not current_status %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "All" %}</a>
+    <a href="?status=DRAFT" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'DRAFT' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Draft" %}</a>
+    <a href="?status=ISSUED" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'ISSUED' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Issued" %}</a>
+    <a href="?status=PAID" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Paid" %}</a>
+    <a href="?status=PARTIALLY_PAID" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PARTIALLY_PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Partial" %}</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+    {% if invoices %}
+    <table class="data-table">
+        <thead><tr><th>{% trans "Invoice" %}</th><th>{% trans "Patient" %}</th><th>{% trans "Total" %}</th><th>{% trans "Paid" %}</th><th>{% trans "Balance" %}</th><th>{% trans "Status" %}</th><th>{% trans "Date" %}</th></tr></thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr class="cursor-pointer hover:bg-primary-50/30" onclick="window.location='{% url 'billing:invoice_detail' inv.pk %}'">
+                <td class="font-mono text-sm font-semibold text-primary-600">{{ inv.invoice_number }}</td>
+                <td class="font-medium text-slate-800">{{ inv.patient.full_name }}</td>
+                <td class="font-mono text-sm">{{ inv.total_tzs|floatformat:0 }}</td>
+                <td class="font-mono text-sm text-success-600">{{ inv.amount_paid_tzs|floatformat:0 }}</td>
+                <td class="font-mono text-sm {% if inv.balance_tzs > 0 %}text-danger-500 font-semibold{% else %}text-slate-400{% endif %}">{{ inv.balance_tzs|floatformat:0 }}</td>
+                <td><span class="badge badge-{{ inv.status|lower }}">{{ inv.get_status_display }}</span></td>
+                <td class="text-xs text-slate-400">{{ inv.issued_at|date:"d/m/Y" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-center">
+        <p class="text-sm text-slate-500">{% trans "No invoices found." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

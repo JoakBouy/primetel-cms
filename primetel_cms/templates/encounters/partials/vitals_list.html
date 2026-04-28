@@ -1,0 +1,22 @@
+{% load i18n %}
+{% if vitals %}
+<div class="space-y-3">
+    {% for v in vitals %}
+    <div class="p-3 bg-slate-50 rounded-xl">
+        <p class="text-[10px] text-slate-400 mb-1.5">{{ v.recorded_at|date:"H:i" }} · {{ v.recorded_by.full_name|default:v.recorded_by.username }}</p>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            {% if v.bp_display != "—" %}<div><span class="text-slate-400">BP:</span> <span class="font-medium text-slate-700">{{ v.bp_display }}</span></div>{% endif %}
+            {% if v.temperature %}<div><span class="text-slate-400">T°:</span> <span class="font-medium text-slate-700">{{ v.temperature }}°C</span></div>{% endif %}
+            {% if v.pulse %}<div><span class="text-slate-400">HR:</span> <span class="font-medium text-slate-700">{{ v.pulse }}</span></div>{% endif %}
+            {% if v.respiratory_rate %}<div><span class="text-slate-400">RR:</span> <span class="font-medium text-slate-700">{{ v.respiratory_rate }}</span></div>{% endif %}
+            {% if v.spo2 %}<div><span class="text-slate-400">SpO₂:</span> <span class="font-medium text-slate-700">{{ v.spo2 }}%</span></div>{% endif %}
+            {% if v.weight_kg %}<div><span class="text-slate-400">Wt:</span> <span class="font-medium text-slate-700">{{ v.weight_kg }}kg</span></div>{% endif %}
+            {% if v.height_cm %}<div><span class="text-slate-400">Ht:</span> <span class="font-medium text-slate-700">{{ v.height_cm }}cm</span></div>{% endif %}
+            {% if v.bmi %}<div><span class="text-slate-400">BMI:</span> <span class="font-medium text-slate-700">{{ v.bmi }}</span></div>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-xs text-slate-400 text-center py-3">{% trans "No vitals recorded" %}</p>
+{% endif %}

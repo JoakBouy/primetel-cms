@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ order.test.name }}{% endblock %}
+{% block page_header %}<div class="mb-6"><h1 class="text-2xl font-bold text-slate-800">{{ order.test.code }} — {{ order.test.name }}</h1><p class="text-sm text-slate-500">{% trans "Patient" %}: {{ order.encounter.patient.full_name }} · {{ order.get_status_display }}</p></div>{% endblock %}
+{% block content %}
+<div class="max-w-xl mx-auto bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+    <div class="space-y-3 text-sm">
+        <div class="flex justify-between"><span class="text-slate-500">{% trans "Ordered by" %}</span><span class="font-medium">{{ order.ordered_by.full_name }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">{% trans "Ordered at" %}</span><span>{{ order.ordered_at|date:"d/m/Y H:i" }}</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">{% trans "Specimen" %}</span><span>{{ order.test.get_specimen_type_display }}</span></div>
+        {% if order.result %}
+        <hr class="my-4">
+        <div class="flex justify-between"><span class="text-slate-500">{% trans "Result" %}</span><span class="font-semibold">{{ order.result.value_numeric|default:order.result.value_text }}</span></div>
+        {% if order.result.flag %}<div class="flex justify-between"><span class="text-slate-500">{% trans "Flag" %}</span><span class="badge badge-{{ order.result.flag|lower }}">{{ order.result.get_flag_display }}</span></div>{% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Encounter" %} — {{ patient.full_name }}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-3 mb-3">
+        <a href="{% url 'patients:chart' patient.pk %}" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div class="flex-1">
+            <div class="flex items-center gap-3">
+                <h1 class="text-xl font-bold text-slate-800">{{ patient.full_name }}</h1>
+                <span class="font-mono text-xs font-semibold text-primary-600 bg-primary-50 px-2.5 py-0.5 rounded-full">{{ patient.patient_number }}</span>
+                <span class="badge badge-{{ encounter.status|lower }}">{{ encounter.get_status_display }}</span>
+            </div>
+            <p class="text-sm text-slate-500 mt-0.5">
+                {{ encounter.get_encounter_type_display }} · {{ patient.age_display }} · {{ patient.get_sex_display }}
+                {% if encounter.clinician %} · {% trans "Clinician" %}: {{ encounter.clinician.full_name }}{% endif %}
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <div id="save-indicator" class="text-xs text-slate-400"></div>
+            {% if encounter.status == "DRAFT" %}
+            <form method="POST" action="{% url 'encounters:finalise' encounter.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success text-sm" id="btn-finalise"
+                        onclick="return confirm('{% trans "Finalise this encounter? This will lock the SOAP note." %}')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {% trans "Finalise" %}
+                </button>
+            </form>
+            {% elif encounter.status == "FINALISED" %}
+            <form method="POST" action="{% url 'encounters:amend' encounter.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline text-sm" id="btn-amend">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    {% trans "Amend" %}
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Patient flags -->
+    {% if patient.has_allergies or patient.is_pregnant or patient.is_minor %}
+    <div class="flex flex-wrap gap-2 ml-8">
+        {% if patient.has_allergies %}<span class="flag-pill flag-allergy text-xs">⚠ {% trans "Allergy" %}: {{ patient.allergies|truncatechars:40 }}</span>{% endif %}
+        {% if patient.is_pregnant %}<span class="flag-pill flag-pregnant text-xs">{% trans "Mjamzito" %}</span>{% endif %}
+        {% if patient.is_minor %}<span class="flag-pill flag-minor text-xs">{% trans "Mtoto" %}</span>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <!-- ═══ LEFT: SOAP Note (2/3) ═══ -->
+    <div class="xl:col-span-2 space-y-5">
+        <form id="soap-form"
+              hx-post="{% url 'encounters:save_draft' encounter.pk %}"
+              hx-trigger="keyup changed delay:2s"
+              hx-target="#save-indicator"
+              hx-swap="innerHTML">
+            {% csrf_token %}
+
+            <!-- Chief Complaint -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-5 mb-5">
+                <label class="block text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">{% trans "Chief Complaint" %} <span class="text-danger-500">*</span></label>
+                <textarea name="chief_complaint" rows="2"
+                          class="form-textarea"
+                          placeholder="{% trans 'What brought the patient in today?' %}"
+                          {% if encounter.status == "FINALISED" %}readonly{% endif %}
+                          id="cc">{{ encounter.chief_complaint }}</textarea>
+            </div>
+
+            <!-- SOAP Fields -->
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden mb-5">
+                <div class="px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+                    <h3 class="text-sm font-semibold text-slate-700">{% trans "SOAP Note" %}</h3>
+                </div>
+                <div class="p-5 space-y-4">
+                    <!-- S -->
+                    <div>
+                        <label class="block text-xs font-semibold text-primary-600 mb-1.5 uppercase tracking-wide">S — {% trans "Subjective" %}</label>
+                        <textarea name="subjective" rows="3" class="form-textarea" placeholder="{% trans 'Patient history, symptoms in their own words…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-s">{{ encounter.subjective }}</textarea>
+                    </div>
+                    <!-- O -->
+                    <div>
+                        <label class="block text-xs font-semibold text-success-500 mb-1.5 uppercase tracking-wide">O — {% trans "Objective" %}</label>
+                        <textarea name="objective" rows="3" class="form-textarea" placeholder="{% trans 'Examination findings, vitals, observations…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-o">{{ encounter.objective }}</textarea>
+                    </div>
+                    <!-- A -->
+                    <div>
+                        <label class="block text-xs font-semibold text-warning-500 mb-1.5 uppercase tracking-wide">A — {% trans "Assessment" %}</label>
+                        <textarea name="assessment" rows="3" class="form-textarea" placeholder="{% trans 'Clinical assessment, differential diagnoses…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-a">{{ encounter.assessment }}</textarea>
+                    </div>
+                    <!-- P -->
+                    <div>
+                        <label class="block text-xs font-semibold text-danger-500 mb-1.5 uppercase tracking-wide">P — {% trans "Plan" %}</label>
+                        <textarea name="plan" rows="3" class="form-textarea" placeholder="{% trans 'Treatment plan, prescriptions, lab orders, follow-up…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-p">{{ encounter.plan }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- ═══ RIGHT: Side Panels (1/3) ═══ -->
+    <div class="space-y-5">
+        <!-- Vitals Panel -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Vitals" %}</h3>
+            </div>
+            <div class="p-5" id="vitals-panel">
+                {% include "encounters/partials/vitals_list.html" %}
+            </div>
+
+            <!-- Add Vitals Form -->
+            {% if encounter.status != "FINALISED" %}
+            <div class="px-5 pb-5" x-data="{ showVitalsForm: false }">
+                <button @click="showVitalsForm = !showVitalsForm" class="w-full py-2 text-xs font-medium text-primary-500 hover:bg-primary-50 rounded-lg transition-colors" id="btn-add-vitals">
+                    + {% trans "Record Vitals" %}
+                </button>
+                <form x-show="showVitalsForm" x-transition method="POST" action="{% url 'encounters:add_vitals' encounter.pk %}" hx-post="{% url 'encounters:add_vitals' encounter.pk %}" hx-target="#vitals-panel" class="mt-3 space-y-2">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" name="bp_systolic" placeholder="BP Sys" class="form-input text-xs py-2">
+                        <input type="number" name="bp_diastolic" placeholder="BP Dia" class="form-input text-xs py-2">
+                        <input type="number" step="0.1" name="temperature" placeholder="Temp °C" class="form-input text-xs py-2">
+                        <input type="number" name="pulse" placeholder="Pulse" class="form-input text-xs py-2">
+                        <input type="number" name="respiratory_rate" placeholder="Resp Rate" class="form-input text-xs py-2">
+                        <input type="number" name="spo2" placeholder="SpO₂ %" class="form-input text-xs py-2">
+                        <input type="number" step="0.1" name="weight_kg" placeholder="Wt (kg)" class="form-input text-xs py-2">
+                        <input type="number" step="0.1" name="height_cm" placeholder="Ht (cm)" class="form-input text-xs py-2">
+                    </div>
+                    <button type="submit" class="w-full btn btn-primary text-xs py-2 justify-center">{% trans "Save Vitals" %}</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Diagnoses Panel -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Diagnoses" %}</h3>
+            </div>
+            <div class="p-5" id="diagnoses-panel">
+                {% include "encounters/partials/diagnosis_list.html" %}
+            </div>
+
+            {% if encounter.status != "FINALISED" %}
+            <div class="px-5 pb-5" x-data="{ showDxForm: false }">
+                <button @click="showDxForm = !showDxForm" class="w-full py-2 text-xs font-medium text-primary-500 hover:bg-primary-50 rounded-lg transition-colors" id="btn-add-dx">
+                    + {% trans "Add Diagnosis" %}
+                </button>
+                <form x-show="showDxForm" x-transition method="POST" action="{% url 'encounters:add_diagnosis' encounter.pk %}" hx-post="{% url 'encounters:add_diagnosis' encounter.pk %}" hx-target="#diagnoses-panel" class="mt-3 space-y-2">
+                    {% csrf_token %}
+                    <input type="text" name="icd10_code" placeholder="ICD-10 (optional)" class="form-input text-xs py-2">
+                    <input type="text" name="description" placeholder="{% trans 'Diagnosis description' %}" class="form-input text-xs py-2" required>
+                    <label class="flex items-center gap-2 text-xs text-slate-600">
+                        <input type="checkbox" name="is_primary" class="rounded text-primary-500"> {% trans "Primary" %}
+                    </label>
+                    <button type="submit" class="w-full btn btn-primary text-xs py-2 justify-center">{% trans "Save Diagnosis" %}</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Prescriptions Panel (summary) -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Prescriptions" %}</h3>
+            </div>
+            <div class="p-5">
+                {% if prescriptions %}
+                <div class="space-y-2">
+                    {% for rx in prescriptions %}
+                    <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                        <div>
+                            <p class="text-xs font-medium text-slate-800">{{ rx.drug }}</p>
+                            <p class="text-[10px] text-slate-400">{{ rx.dose }} — {{ rx.frequency }} × {{ rx.duration_days }}d</p>
+                        </div>
+                        <span class="badge badge-{{ rx.status|lower }} text-[10px]">{{ rx.get_status_display }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 text-center py-3">{% trans "No prescriptions" %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Lab Orders Panel (summary) -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Lab Orders" %}</h3>
+            </div>
+            <div class="p-5">
+                {% if lab_orders %}
+                <div class="space-y-2">
+                    {% for order in lab_orders %}
+                    <div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                        <p class="text-xs font-medium text-slate-800">{{ order.test }}</p>
+                        <span class="badge badge-{{ order.status|lower }} text-[10px]">{{ order.get_status_display }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400 text-center py-3">{% trans "No lab orders" %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

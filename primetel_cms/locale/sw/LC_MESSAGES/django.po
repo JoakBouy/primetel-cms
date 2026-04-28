@@ -1,0 +1,70 @@
+# Primetel CMS Kiswahili Translations
+msgid ""
+msgstr ""
+"Project-Id-Version: Primetel CMS 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-28 10:00+0300\n"
+"PO-Revision-Date: 2026-04-28 10:00+0300\n"
+"Last-Translator: System <admin@primetel.co.tz>\n"
+"Language-Team: Swahili <sw@li.org>\n"
+"Language: sw\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Dashboard"
+msgstr "Dashibodi"
+
+msgid "Patients"
+msgstr "Wagonjwa"
+
+msgid "Appointments"
+msgstr "Miadi"
+
+msgid "Pharmacy"
+msgstr "Duka la Dawa"
+
+msgid "Laboratory"
+msgstr "Maabara"
+
+msgid "Billing"
+msgstr "Malipo"
+
+msgid "Reports"
+msgstr "Ripoti"
+
+msgid "Register Patient"
+msgstr "Sajili Mgonjwa"
+
+msgid "Today's Queue"
+msgstr "Foleni ya Leo"
+
+msgid "Login"
+msgstr "Ingia"
+
+msgid "Username"
+msgstr "Jina la Mtumiaji"
+
+msgid "Password"
+msgstr "Nenosiri"
+
+msgid "Sign In"
+msgstr "Ingia"
+
+msgid "Logout"
+msgstr "Toka"
+
+msgid "Welcome back"
+msgstr "Karibu tena"
+
+msgid "Patients seen"
+msgstr "Wagonjwa waliohudumiwa"
+
+msgid "Revenue collected"
+msgstr "Mapato yaliyokusanywa"
+
+msgid "Prescriptions dispensed"
+msgstr "Dawa zilizotolewa"
+
+msgid "Pending labs"
+msgstr "Vipimo vinavyosubiriwa"

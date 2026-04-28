@@ -1,0 +1,8 @@
+{% load i18n %}
+{% if patient.photo %}
+<img src="{{ patient.photo.url }}" alt="{{ patient.full_name }}" class="w-16 h-16 rounded-2xl object-cover shadow-md ring-2 ring-white">
+{% else %}
+<div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold shadow-md ring-2 ring-white">
+    {{ patient.full_name|first|upper }}
+</div>
+{% endif %}

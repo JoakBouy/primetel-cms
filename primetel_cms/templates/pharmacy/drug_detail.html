@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ drug.generic_name }}{% endblock %}
+{% block page_header %}
+<div class="mb-6"><div class="flex items-center gap-3"><a href="{% url 'pharmacy:stock' %}" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></a><div><h1 class="text-2xl font-bold text-slate-800">{{ drug.generic_name }} {{ drug.strength }}</h1><p class="text-sm text-slate-500">{{ drug.get_form_display }} · {% trans "Total stock" %}: {{ drug.total_stock }}</p></div></div></div>
+{% endblock %}
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+    {% if batches %}
+    <table class="data-table"><thead><tr><th>{% trans "Batch" %}</th><th>{% trans "Expiry" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Status" %}</th></tr></thead>
+    <tbody>{% for b in batches %}<tr><td class="font-mono text-sm">{{ b.batch_number }}</td><td class="text-sm">{{ b.expiry_date|date:"d/m/Y" }}</td><td class="font-semibold">{{ b.quantity_on_hand }}</td><td>{% if b.is_expired %}<span class="badge badge-cancelled">{% trans "Expired" %}</span>{% elif b.is_near_expiry %}<span class="badge badge-checked-in">{% trans "Near Expiry" %}</span>{% else %}<span class="badge badge-completed">{% trans "OK" %}</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% else %}<div class="p-12 text-center"><p class="text-sm text-slate-500">{% trans "No stock items" %}</p></div>{% endif %}
+</div>
+{% endblock %}

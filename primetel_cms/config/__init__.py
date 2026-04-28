@@ -1,0 +1,1 @@
+# Primetel CMS config package

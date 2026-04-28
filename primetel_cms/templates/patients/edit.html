@@ -1,0 +1,16 @@
+{% extends "patients/register.html" %}
+{% load i18n %}
+{% block title %}{% trans "Edit Patient" %}{% endblock %}
+{% block page_header %}
+<div class="mb-8">
+    <div class="flex items-center gap-3 mb-2">
+        <a href="{% url 'patients:chart' patient.pk %}" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{% trans "Edit Patient" %}</h1>
+            <p class="text-sm text-slate-500 mt-0.5">{{ patient.full_name }} · {{ patient.patient_number }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

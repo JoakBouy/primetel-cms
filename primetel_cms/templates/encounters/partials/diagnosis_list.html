@@ -1,0 +1,20 @@
+{% load i18n %}
+{% if diagnoses %}
+<div class="space-y-2">
+    {% for dx in diagnoses %}
+    <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
+        {% if dx.is_primary %}
+        <span class="w-5 h-5 bg-warning-100 rounded-full flex items-center justify-center text-warning-600 text-[10px]">★</span>
+        {% else %}
+        <span class="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 text-[10px]">•</span>
+        {% endif %}
+        <div>
+            <p class="text-xs font-medium text-slate-800">{{ dx.description }}</p>
+            {% if dx.icd10_code %}<p class="text-[10px] text-slate-400 font-mono">{{ dx.icd10_code }}</p>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-xs text-slate-400 text-center py-3">{% trans "No diagnoses" %}</p>
+{% endif %}

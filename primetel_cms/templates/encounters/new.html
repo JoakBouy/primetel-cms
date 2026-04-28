@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "New Encounter" %} — {{ patient.full_name }}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <div class="flex items-center gap-3 mb-2">
+        <a href="{% url 'patients:chart' patient.pk %}" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{% if is_mental_health %}{% trans "New Mental Health Encounter" %}{% else %}{% trans "New Encounter" %}{% endif %}</h1>
+            <p class="text-sm text-slate-500 mt-0.5">{{ patient.full_name }} · {{ patient.patient_number }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <form method="POST" id="new-encounter-form">
+            {% csrf_token %}
+            {% if not is_mental_health %}
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">{% trans "Encounter Type" %}</label>
+                <select name="encounter_type" class="form-select">
+                    <option value="GENERAL">{% trans "General" %}</option>
+                    <option value="FOLLOW_UP">{% trans "Follow Up" %}</option>
+                    <option value="ANC">{% trans "Antenatal" %}</option>
+                    <option value="PEDIATRIC">{% trans "Pediatric" %}</option>
+                </select>
+            </div>
+            {% endif %}
+            <div class="mb-5">
+                <label class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">{% trans "Chief Complaint" %}</label>
+                <textarea name="chief_complaint" rows="3" class="form-textarea" placeholder="{% trans 'Brief summary of why the patient is here…' %}" id="cc-input"></textarea>
+            </div>
+            <button type="submit" class="w-full btn btn-primary justify-center" id="start-encounter">
+                {% trans "Start Encounter" %} →
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

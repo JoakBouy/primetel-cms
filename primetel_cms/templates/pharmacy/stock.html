@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Stock Management" %}{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Stock Management" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{{ drugs|length }} {% trans "active drugs" %}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+    {% if drugs %}
+    <table class="data-table">
+        <thead><tr><th>{% trans "Drug" %}</th><th>{% trans "Form" %}</th><th>{% trans "Total Stock" %}</th><th>{% trans "Status" %}</th><th>{% trans "Unit Price" %}</th></tr></thead>
+        <tbody>
+            {% for drug in drugs %}
+            <tr>
+                <td><a href="{% url 'pharmacy:drug_detail' drug.pk %}" class="font-medium text-slate-800 hover:text-primary-600">{{ drug.generic_name }} {{ drug.strength }}</a></td>
+                <td class="text-sm text-slate-500">{{ drug.get_form_display }}</td>
+                <td class="text-sm font-semibold">{{ drug.total_stock }}</td>
+                <td>
+                    {% if drug.is_low_stock %}<span class="badge badge-cancelled">{% trans "Low Stock" %}</span>
+                    {% else %}<span class="badge badge-completed">{% trans "OK" %}</span>{% endif %}
+                </td>
+                <td class="text-sm text-slate-500 font-mono">{{ drug.unit_price_tzs|floatformat:0 }} TZS</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-center">
+        <p class="text-sm text-slate-500">{% trans "No drugs in the formulary yet." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

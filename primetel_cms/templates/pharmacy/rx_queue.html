@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% trans "Rx Queue" %}{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Prescription Queue" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{{ prescriptions|length }} {% trans "prescriptions awaiting dispensing" %}</p>
+    </div>
+    <a href="{% url 'pharmacy:stock' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-stock">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        {% trans "Stock Management" %}
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+    {% if prescriptions %}
+    <table class="data-table">
+        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Drug" %}</th><th>{% trans "Dose" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Ordered" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
+        <tbody>
+            {% for rx in prescriptions %}
+            <tr>
+                <td class="font-medium text-slate-800">{{ rx.encounter.patient.full_name }}<br><span class="text-[10px] text-slate-400 font-mono">{{ rx.encounter.patient.patient_number }}</span></td>
+                <td class="text-sm">{{ rx.drug }}</td>
+                <td class="text-sm text-slate-600">{{ rx.dose }} — {{ rx.frequency }}</td>
+                <td class="text-sm font-semibold">{{ rx.quantity }}</td>
+                <td class="text-xs text-slate-400">{{ rx.prescribed_at|timesince }} {% trans "ago" %}</td>
+                <td class="text-right"><span class="badge badge-prescribed">{% trans "Pending" %}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-center">
+        <div class="w-14 h-14 bg-success-50 rounded-2xl flex items-center justify-center mb-3">
+            <svg class="w-7 h-7 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold text-slate-700 mb-1">{% trans "Queue is clear" %}</h3>
+        <p class="text-xs text-slate-400">{% trans "No prescriptions awaiting dispensing." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

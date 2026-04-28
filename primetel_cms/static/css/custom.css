@@ -1,0 +1,217 @@
+/* ═══════════════════════════════════════════════════ */
+/*  Primetel CMS — Custom Styles                      */
+/*  Complements Tailwind CDN with app-specific styles  */
+/* ═══════════════════════════════════════════════════ */
+
+/* ─── CSS Custom Properties (Design Tokens) ─────── */
+:root {
+    --color-primary: #CC2229;
+    --color-success: #38A169;
+    --color-warning: #D69E2E;
+    --color-danger: #E53E3E;
+    --color-bg: #F7FAFC;
+    --color-text: #1A202C;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+}
+
+/* ─── Form Input Consistent Styling ─────────────── */
+.form-input,
+.form-select,
+.form-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-lg);
+    font-size: 0.875rem;
+    color: var(--color-text);
+    transition: all 0.15s ease;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.12);
+    background: white;
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+    color: #a0aec0;
+}
+
+/* ─── Button Variants ───────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: var(--radius-lg);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #CC2229, #E04848);
+    color: white;
+    box-shadow: 0 4px 15px rgba(204, 34, 41, 0.2);
+}
+.btn-primary:hover {
+    background: linear-gradient(135deg, #E04848, #E57373);
+    box-shadow: 0 4px 20px rgba(204, 34, 41, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #38A169, #48BB78);
+    color: white;
+    box-shadow: 0 4px 15px rgba(56, 161, 105, 0.2);
+}
+.btn-success:hover {
+    box-shadow: 0 4px 20px rgba(56, 161, 105, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #E53E3E, #F56565);
+    color: white;
+    box-shadow: 0 4px 15px rgba(229, 62, 62, 0.2);
+}
+
+.btn-outline {
+    background: white;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    box-shadow: var(--shadow-card);
+}
+.btn-outline:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: #64748b;
+}
+.btn-ghost:hover {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+/* ─── Status Badges ─────────────────────────────── */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.badge-scheduled { background: #EBF4FF; color: #2B6CB0; }
+.badge-checked-in { background: #FEF3C7; color: #975A16; }
+.badge-in-consult { background: #C6F6D5; color: #276749; }
+.badge-completed { background: #F0FFF4; color: #22543D; }
+.badge-cancelled { background: #FED7D7; color: #9B2C2C; }
+.badge-no-show { background: #FEE2E2; color: #991B1B; }
+.badge-draft { background: #F1F5F9; color: #475569; }
+.badge-finalised { background: #DBEAFE; color: #1E40AF; }
+.badge-paid { background: #D1FAE5; color: #065F46; }
+.badge-pending { background: #FEF3C7; color: #92400E; }
+
+/* ─── Flag Pills (Patient) ──────────────────────── */
+.flag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    border-radius: 9999px;
+}
+
+.flag-minor { background: #E0E7FF; color: #3730A3; }
+.flag-pregnant { background: #FCE7F3; color: #9D174D; }
+.flag-chronic { background: #FEF3C7; color: #92400E; }
+.flag-allergy { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+
+/* ─── Data Table Styling ────────────────────────── */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.data-table thead th {
+    background: #F8FAFC;
+    padding: 0.75rem 1rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.data-table thead th:first-child {
+    border-top-left-radius: var(--radius-lg);
+}
+.data-table thead th:last-child {
+    border-top-right-radius: var(--radius-lg);
+}
+
+.data-table tbody tr {
+    transition: background 0.1s ease;
+}
+.data-table tbody tr:hover {
+    background: #F8FAFC;
+}
+
+.data-table tbody td {
+    padding: 0.875rem 1rem;
+    font-size: 0.875rem;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* ─── Modal Styling ─────────────────────────────── */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* ─── Print Styles ──────────────────────────────── */
+@media print {
+    nav, aside, #toast-container, .no-print { display: none !important; }
+    main { padding: 0 !important; margin: 0 !important; }
+    .shadow-card, .shadow-lg { box-shadow: none !important; }
+    body { background: white !important; }
+}

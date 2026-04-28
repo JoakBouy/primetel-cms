@@ -1,0 +1,7 @@
+{% load i18n %}
+<div class="flex flex-wrap gap-2">
+    {% if patient.is_minor %}<span class="flag-pill flag-minor text-xs">{% trans "Mtoto" %}</span>{% endif %}
+    {% if patient.is_pregnant %}<span class="flag-pill flag-pregnant text-xs">{% trans "Mjamzito" %}</span>{% endif %}
+    {% if patient.has_allergies %}<span class="flag-pill flag-allergy text-xs">⚠ {{ patient.allergies|truncatechars:30 }}</span>{% endif %}
+    {% for cond in patient.chronic_conditions_list %}<span class="flag-pill flag-chronic text-xs">{{ cond }}</span>{% endfor %}
+</div>
