@@ -3,7 +3,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, F
+from django.db.models.functions import Coalesce
 
 from apps.encounters.models import Encounter, Diagnosis
 from apps.billing.models import Payment
@@ -31,7 +32,9 @@ def dashboard(request):
     pending_labs = LabOrder.objects.filter(status__in=['ORDERED', 'SAMPLE_COLLECTED']).count()
     
     # 5. Low Stock Drugs
-    low_stock_drugs = Drug.objects.filter(total_stock__lte=5)[:5] # simplistic approach, better to check against minimum_stock if it existed
+    low_stock_drugs = Drug.objects.annotate(
+        total_stock_db=Coalesce(Sum('stock_items__quantity_on_hand'), 0)
+    ).filter(total_stock_db__lte=F('low_stock_threshold'))[:5]
     
     # 6. Near Expiry Batches (within 90 days)
     ninety_days_from_now = today + timedelta(days=90)

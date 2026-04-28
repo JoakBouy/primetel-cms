@@ -7,7 +7,7 @@ from .base import *  # noqa: F401, F403
 
 DEBUG = False
 
-ALLOWED_HOSTS = env("ALLOWED_HOSTS", default="cms.primetel.tech,primetel-cms.onrender.com").split(",")  # noqa: F405
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["cms.primetel.tech", "primetel-cms.onrender.com"])  # noqa: F405
 
 # Database — PostgreSQL via Supabase
 DATABASES = {

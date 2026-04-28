@@ -14,7 +14,7 @@ services:
         sync: false
       - key: SECRET_KEY
         generateValue: true
-      - key: DJANGO_ALLOWED_HOSTS
+      - key: ALLOWED_HOSTS
         value: cms.primetel.tech,primetel-cms.onrender.com
       - key: SUPABASE_URL
         sync: false
