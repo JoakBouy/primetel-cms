@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: primetel-cms
+    env: python
+    plan: free
+    region: frankfurt
+    rootDir: primetel_cms
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput && python manage.py seed_data && python manage.py bootstrap_admin"
+    startCommand: "gunicorn config.wsgi:application"
+    healthCheckPath: /healthz/
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      # Supabase Postgres session-pooler URL. Set via Render dashboard,
+      # never commit. Format: postgresql://USER:PASS@HOST:5432/postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      # Comma-separated list. Update if you bind a custom domain.
+      - key: ALLOWED_HOSTS
+        value: primetel-cms.onrender.com
+      # Idle session timeout in seconds (default 900 = 15 minutes).
+      - key: IDLE_SESSION_SECONDS
+        value: "900"
+      # Optional: set to a Sentry DSN to enable error reporting.
+      # Leave blank to disable (the prod settings handle this gracefully).
+      - key: SENTRY_DSN
+        sync: false
+      - key: SENTRY_ENV
+        value: production
+      # First-deploy admin bootstrap. Set BOOTSTRAP_ADMIN_PASSWORD in the
+      # Render dashboard before the first build. Once the user exists,
+      # subsequent builds leave the password untouched — change passwords
+      # via /admin/, not by editing this env var.
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        value: admin
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.7"

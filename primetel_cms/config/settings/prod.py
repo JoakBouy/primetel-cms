@@ -25,7 +25,7 @@ if SENTRY_DSN:
 
 DEBUG = False
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["cms.primetel.tech", "primetel-cms.onrender.com"])  # noqa: F405
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["primetel-cms.onrender.com"])  # noqa: F405
 
 # Database — PostgreSQL via Supabase
 DATABASES = {
@@ -56,11 +56,8 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
-# CORS
-CORS_ALLOWED_ORIGINS = [
-    "https://cms.primetel.tech",
-    "https://primetel-cms.onrender.com",
-]
+# CORS — derive from ALLOWED_HOSTS so they stay in sync.
+CORS_ALLOWED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and host != "*"]
 
 # Logging
 LOGGING = {
