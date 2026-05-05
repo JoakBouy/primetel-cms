@@ -1,4 +1,7 @@
 """Primetel CMS — Pharmacy Views."""
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +14,7 @@ from apps.core.pdf import render_pdf
 from apps.encounters.models import Encounter
 
 from .allergy import check_allergy
-from .models import Dispense, Drug, Prescription, StockItem
+from .models import Dispense, Drug, Prescription, StockItem, StockMovement
 
 
 @requires_role("PHARMACY", "ADMIN")
@@ -178,3 +181,139 @@ def rx_print(request, pk):
         "now": timezone.now(),
     }, request=request)
     return render_pdf(html, filename=f"rx-{rx.pk}.pdf")
+
+
+# ─── Drug catalogue management (PHARMACY, ADMIN) ──────────────────
+
+DRUG_FORMS = ["TABLET", "CAPSULE", "SYRUP", "INJECTION", "CREAM", "DROPS", "OTHER"]
+
+
+@requires_role("PHARMACY", "ADMIN")
+def drug_catalogue(request):
+    """List the full drug formulary, including inactive entries."""
+    drugs = Drug.objects.order_by("-is_active", "generic_name")
+    return render(request, "pharmacy/catalogue.html", {
+        "page_title": _("Drug Formulary"),
+        "drugs": drugs,
+    })
+
+
+@requires_role("PHARMACY", "ADMIN")
+def drug_create(request):
+    """Add a new drug to the formulary."""
+    if request.method == "POST":
+        try:
+            drug = _populate_drug(Drug(), request.POST)
+            drug.full_clean()
+            drug.save()
+            messages.success(request, _("Drug '%(n)s' added.") % {"n": drug.generic_name})
+            return redirect("pharmacy:catalogue")
+        except Exception as exc:
+            messages.error(request, _("Could not save: %(e)s") % {"e": exc})
+            return render(request, "pharmacy/drug_form.html", {
+                "page_title": _("New Drug"),
+                "form_data": request.POST,
+                "drug": None,
+                "forms": DRUG_FORMS,
+            })
+    return render(request, "pharmacy/drug_form.html", {
+        "page_title": _("New Drug"),
+        "form_data": {},
+        "drug": None,
+        "forms": DRUG_FORMS,
+    })
+
+
+@requires_role("PHARMACY", "ADMIN")
+def drug_edit(request, pk):
+    """Edit an existing drug."""
+    drug = get_object_or_404(Drug, pk=pk)
+    if request.method == "POST":
+        try:
+            _populate_drug(drug, request.POST)
+            drug.full_clean()
+            drug.save()
+            messages.success(request, _("Drug updated."))
+            return redirect("pharmacy:drug_detail", pk=drug.pk)
+        except Exception as exc:
+            messages.error(request, _("Could not save: %(e)s") % {"e": exc})
+    return render(request, "pharmacy/drug_form.html", {
+        "page_title": _("Edit Drug"),
+        "form_data": request.POST or {
+            "generic_name": drug.generic_name,
+            "brand_name": drug.brand_name,
+            "strength": drug.strength,
+            "form": drug.form,
+            "pack_size": drug.pack_size,
+            "unit_price_tzs": drug.unit_price_tzs,
+            "low_stock_threshold": drug.low_stock_threshold,
+            "is_active": "on" if drug.is_active else "",
+        },
+        "drug": drug,
+        "forms": DRUG_FORMS,
+    })
+
+
+def _populate_drug(drug: Drug, data) -> Drug:
+    drug.generic_name = (data.get("generic_name") or "").strip()
+    drug.brand_name = (data.get("brand_name") or "").strip()
+    drug.strength = (data.get("strength") or "").strip()
+    drug.form = data.get("form") or "OTHER"
+    drug.is_active = data.get("is_active") == "on"
+    for field in ("pack_size", "low_stock_threshold"):
+        raw = (data.get(field) or "").strip()
+        if not raw:
+            setattr(drug, field, 1 if field == "pack_size" else 10)
+            continue
+        try:
+            setattr(drug, field, int(raw))
+        except ValueError:
+            raise ValueError(f"{field} must be a whole number.")
+    raw_price = (data.get("unit_price_tzs") or "").strip()
+    try:
+        drug.unit_price_tzs = Decimal(raw_price) if raw_price else Decimal(0)
+    except InvalidOperation:
+        raise ValueError("unit_price_tzs must be a number.")
+    if not drug.generic_name or not drug.strength:
+        raise ValueError("Generic name and strength are required.")
+    if drug.form not in DRUG_FORMS:
+        raise ValueError(f"Invalid form '{drug.form}'.")
+    return drug
+
+
+# ─── Stock-receive (new batch) ────────────────────────────────────
+
+@requires_role("PHARMACY", "ADMIN")
+def stock_receive(request, drug_pk):
+    """Receive a new batch of stock for a drug. Records a StockMovement."""
+    drug = get_object_or_404(Drug, pk=drug_pk)
+    if request.method == "POST":
+        batch_number = (request.POST.get("batch_number") or "").strip()
+        expiry_raw = (request.POST.get("expiry_date") or "").strip()
+        try:
+            qty = int(request.POST.get("quantity_on_hand") or 0)
+        except ValueError:
+            qty = 0
+        if not batch_number or qty <= 0 or not expiry_raw:
+            messages.error(request, _("Batch number, positive quantity, and expiry date are all required."))
+            return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
+        try:
+            expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, _("Expiry date must be YYYY-MM-DD."))
+            return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
+        if expiry <= timezone.now().date():
+            messages.error(request, _("Expiry date must be in the future."))
+            return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
+        item = StockItem.objects.create(
+            drug=drug, batch_number=batch_number, expiry_date=expiry, quantity_on_hand=qty,
+        )
+        StockMovement.objects.create(
+            stock_item=item, movement_type="RECEIVE", quantity=qty, performed_by=request.user,
+        )
+        messages.success(request, _("Received %(q)s units (batch %(b)s).") % {"q": qty, "b": batch_number})
+        return redirect("pharmacy:drug_detail", pk=drug.pk)
+    return render(request, "pharmacy/stock_receive.html", {
+        "page_title": _("Receive stock"),
+        "drug": drug,
+    })

@@ -225,6 +225,23 @@
                 {% endif %}
             </div>
         </div>
+
+        {% if invoice %}
+        <!-- Invoice (auto-charged consultation) -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Invoice" %}</h3>
+                <span class="badge badge-{{ invoice.status|lower }} text-[10px]">{{ invoice.get_status_display }}</span>
+            </div>
+            <div class="p-5 space-y-2 text-sm">
+                <div class="flex justify-between text-xs"><span class="text-slate-500">{{ invoice.invoice_number }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">{% trans "Total" %}</span><span class="font-mono font-semibold">{{ invoice.total_tzs|floatformat:0 }} TZS</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">{% trans "Paid" %}</span><span class="font-mono text-success-600">{{ invoice.amount_paid_tzs|floatformat:0 }}</span></div>
+                <div class="flex justify-between"><span class="text-slate-500">{% trans "Balance" %}</span><span class="font-mono font-bold {% if invoice.balance_tzs > 0 %}text-danger-500{% else %}text-success-600{% endif %}">{{ invoice.balance_tzs|floatformat:0 }}</span></div>
+                <a href="{% url 'billing:invoice_detail' invoice.pk %}" class="block text-center mt-3 text-xs font-medium text-primary-600 hover:underline" id="invoice-link">{% trans "Open invoice" %} →</a>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

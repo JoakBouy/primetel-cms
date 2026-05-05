@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">{{ page_title }}</h1>
+    <p class="text-sm text-slate-500 mt-0.5">
+        {% if test %}{{ test.code }} — {{ test.name }}{% else %}{% trans "Define a new test for the lab catalogue." %}{% endif %}
+    </p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Code" %} <span class="text-danger-500">*</span></label>
+                <input type="text" name="code" required maxlength="20" value="{{ form_data.code|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono" id="test-code" placeholder="e.g. CRP">
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Name" %} <span class="text-danger-500">*</span></label>
+                <input type="text" name="name" required maxlength="255" value="{{ form_data.name|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-name" placeholder="C-Reactive Protein">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Specimen type" %}</label>
+            <select name="specimen_type" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-specimen">
+                <option value="BLOOD" {% if form_data.specimen_type == "BLOOD" %}selected{% endif %}>{% trans "Blood" %}</option>
+                <option value="URINE" {% if form_data.specimen_type == "URINE" %}selected{% endif %}>{% trans "Urine" %}</option>
+                <option value="STOOL" {% if form_data.specimen_type == "STOOL" %}selected{% endif %}>{% trans "Stool" %}</option>
+                <option value="SWAB" {% if form_data.specimen_type == "SWAB" %}selected{% endif %}>{% trans "Swab" %}</option>
+                <option value="OTHER" {% if form_data.specimen_type == "OTHER" or not form_data.specimen_type %}selected{% endif %}>{% trans "Other" %}</option>
+            </select>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Reference min" %}</label>
+                <input type="text" name="reference_range_min" value="{{ form_data.reference_range_min|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-min" placeholder="leave blank if qualitative">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Reference max" %}</label>
+                <input type="text" name="reference_range_max" value="{{ form_data.reference_range_max|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-max">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Unit" %}</label>
+                <input type="text" name="reference_unit" maxlength="30" value="{{ form_data.reference_unit|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-unit" placeholder="mg/dL, x10^9/L, %">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Price (TZS)" %}</label>
+            <input type="number" name="price_tzs" min="0" step="1" value="{{ form_data.price_tzs|default:'0' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-price">
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2">
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="is_active" {% if form_data.is_active == "on" or not test %}checked{% endif %} id="test-active">
+                <span>{% trans "Active (available to clinicians when ordering)" %}</span>
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="is_send_out" {% if form_data.is_send_out == "on" %}checked{% endif %} id="test-sendout">
+                <span>{% trans "Send-out test (performed at an external lab)" %}</span>
+            </label>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700" id="test-save">
+                {% if test %}{% trans "Save changes" %}{% else %}{% trans "Add test" %}{% endif %}
+            </button>
+            <a href="{% url 'lab:catalogue' %}" class="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 self-center">{% trans "Cancel" %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

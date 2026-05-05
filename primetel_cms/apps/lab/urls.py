@@ -14,4 +14,7 @@ urlpatterns = [
     path("orders/<uuid:pk>/review/", views.lab_review, name="review"),
     path("orders/<uuid:pk>/print/", views.lab_order_print, name="print"),
     path("encounters/<uuid:encounter_pk>/order/", views.lab_order_new, name="order_new"),
+    path("catalogue/", views.lab_test_catalogue, name="catalogue"),
+    path("catalogue/new/", views.lab_test_create, name="test_create"),
+    path("catalogue/<uuid:pk>/edit/", views.lab_test_edit, name="test_edit"),
 ]

@@ -25,7 +25,10 @@ if SENTRY_DSN:
 
 DEBUG = False
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["primetel-cms.onrender.com"])  # noqa: F405
+ALLOWED_HOSTS = env.list(
+    "ALLOWED_HOSTS",
+    default=["primetel-cms-oz37.onrender.com", "cms.primetel.tech"],
+)  # noqa: F405
 
 # Database — PostgreSQL via Supabase
 DATABASES = {
@@ -58,6 +61,10 @@ if RENDER_EXTERNAL_HOSTNAME:
 
 # CORS — derive from ALLOWED_HOSTS so they stay in sync.
 CORS_ALLOWED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and host != "*"]
+
+# CSRF trusted origins — required by Django 4+ for HTTPS form POSTs behind
+# a proxy. Without this, every POST returns "CSRF verification failed".
+CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and host != "*"]
 
 # Logging
 LOGGING = {

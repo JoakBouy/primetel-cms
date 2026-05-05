@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_any_role, requires_role
@@ -15,9 +16,11 @@ from .forms import PatientRegistrationForm, PatientSearchForm
 from .models import Patient
 
 
+@never_cache
 @login_required
 def patient_list(request):
-    """Patient list with live fuzzy search via HTMX."""
+    """Patient list with live fuzzy search via HTMX. Never cached so newly
+    registered patients appear immediately."""
     query = request.GET.get("q", "").strip()
     form = PatientSearchForm(initial={"q": query})
     patients = Patient.objects.search(query) if query else Patient.objects.order_by("-created_at")[:50]

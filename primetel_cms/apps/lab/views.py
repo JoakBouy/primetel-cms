@@ -160,6 +160,91 @@ def lab_order_print(request, pk):
     return render_pdf(html, filename=f"lab-{order.pk}.pdf")
 
 
+@requires_role("LAB", "ADMIN")
+def lab_test_catalogue(request):
+    """List the lab test catalogue. LAB techs can add and edit entries."""
+    tests = LabTest.objects.order_by("-is_active", "name")
+    return render(request, "lab/catalogue.html", {
+        "page_title": _("Lab Test Catalogue"),
+        "tests": tests,
+    })
+
+
+@requires_role("LAB", "ADMIN")
+def lab_test_create(request):
+    """Add a new lab test to the catalogue."""
+    if request.method == "POST":
+        try:
+            test = _populate_test(LabTest(), request.POST)
+            test.full_clean()
+            test.save()
+            messages.success(request, _("Lab test '%(n)s' added.") % {"n": test.name})
+            return redirect("lab:catalogue")
+        except Exception as exc:
+            messages.error(request, _("Could not save: %(e)s") % {"e": exc})
+            return render(request, "lab/test_form.html", {
+                "page_title": _("New Lab Test"),
+                "form_data": request.POST,
+                "test": None,
+            })
+    return render(request, "lab/test_form.html", {
+        "page_title": _("New Lab Test"),
+        "form_data": {},
+        "test": None,
+    })
+
+
+@requires_role("LAB", "ADMIN")
+def lab_test_edit(request, pk):
+    """Edit an existing lab test in the catalogue."""
+    test = get_object_or_404(LabTest, pk=pk)
+    if request.method == "POST":
+        try:
+            _populate_test(test, request.POST)
+            test.full_clean()
+            test.save()
+            messages.success(request, _("Lab test updated."))
+            return redirect("lab:catalogue")
+        except Exception as exc:
+            messages.error(request, _("Could not save: %(e)s") % {"e": exc})
+    return render(request, "lab/test_form.html", {
+        "page_title": _("Edit Lab Test"),
+        "form_data": request.POST or {
+            "code": test.code, "name": test.name,
+            "specimen_type": test.specimen_type,
+            "reference_range_min": test.reference_range_min or "",
+            "reference_range_max": test.reference_range_max or "",
+            "reference_unit": test.reference_unit,
+            "price_tzs": test.price_tzs,
+            "is_active": "on" if test.is_active else "",
+            "is_send_out": "on" if test.is_send_out else "",
+        },
+        "test": test,
+    })
+
+
+def _populate_test(test: LabTest, data) -> LabTest:
+    """Apply form data to a LabTest instance, parsing decimals carefully."""
+    test.code = (data.get("code") or "").strip()
+    test.name = (data.get("name") or "").strip()
+    test.specimen_type = data.get("specimen_type") or "OTHER"
+    test.reference_unit = (data.get("reference_unit") or "").strip()
+    test.is_active = data.get("is_active") == "on"
+    test.is_send_out = data.get("is_send_out") == "on"
+    for field in ("reference_range_min", "reference_range_max", "price_tzs"):
+        raw = (data.get(field) or "").strip()
+        if raw == "" or raw is None:
+            setattr(test, field, None if field != "price_tzs" else Decimal(0))
+            continue
+        try:
+            setattr(test, field, Decimal(raw))
+        except InvalidOperation:
+            raise ValueError(f"{field} must be a number.")
+    if not test.code or not test.name:
+        raise ValueError("Code and name are required.")
+    return test
+
+
 def _compute_flag(order: LabOrder, value):
     """Auto-flag a numeric result against the test's reference range."""
     if value is None:

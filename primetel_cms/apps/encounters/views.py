@@ -50,6 +50,13 @@ def encounter_new(request):
             chief_complaint=request.POST.get("chief_complaint", ""),
             created_by=request.user,
         )
+        # Auto-charge the consultation as a draft invoice (5000 new / 3000 follow-up).
+        try:
+            from apps.billing.consultation import auto_charge
+            auto_charge(encounter, request.user)
+        except Exception:
+            # Never block clinical work on a billing hiccup.
+            pass
         return redirect("encounters:detail", pk=encounter.pk)
     return render(request, "encounters/new.html", {
         "page_title": _("New Encounter"),
@@ -69,6 +76,11 @@ def encounter_new_mh(request):
             chief_complaint=request.POST.get("chief_complaint", ""),
             created_by=request.user,
         )
+        try:
+            from apps.billing.consultation import auto_charge
+            auto_charge(encounter, request.user)
+        except Exception:
+            pass
         return redirect("encounters:detail", pk=encounter.pk)
     return render(request, "encounters/new.html", {
         "page_title": _("New Mental Health Encounter"),
@@ -82,6 +94,9 @@ def encounter_detail(request, pk):
     """Encounter detail — the main clinician screen (SOAP form)."""
     encounter = _get_encounter_for_user(request.user, pk)
     mh_assessment = getattr(encounter, "mental_health_assessment", None)
+    # Invoice for this encounter (created automatically on encounter open).
+    from apps.billing.models import Invoice
+    invoice = Invoice.objects.filter(encounter=encounter).first()
     return render(request, "encounters/detail.html", {
         "page_title": f"{_('Encounter')} — {encounter.patient.full_name}",
         "encounter": encounter,
@@ -90,6 +105,7 @@ def encounter_detail(request, pk):
         "diagnoses": encounter.diagnoses.all(),
         "prescriptions": encounter.prescriptions.all() if hasattr(encounter, 'prescriptions') else [],
         "lab_orders": encounter.lab_orders.all() if hasattr(encounter, 'lab_orders') else [],
+        "invoice": invoice,
         "mh_assessment": mh_assessment,
         "phq9_q9_red_flag": (
             mh_assessment is not None

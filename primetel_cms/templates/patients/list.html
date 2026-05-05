@@ -32,7 +32,7 @@
                placeholder="{% trans 'Search by name, phone, or patient number…' %}"
                id="search-input"
                hx-get="{% url 'patients:list' %}"
-               hx-trigger="keyup changed delay:300ms, search"
+               hx-trigger="keyup changed delay:150ms, search"
                hx-target="#patient-results"
                hx-indicator="#search-spinner">
         <div id="search-spinner" class="htmx-indicator absolute inset-y-0 right-0 pr-4 flex items-center">

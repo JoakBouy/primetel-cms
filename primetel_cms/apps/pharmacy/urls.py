@@ -13,4 +13,8 @@ urlpatterns = [
     path("rx/<uuid:pk>/dispense/", views.rx_dispense, name="rx_dispense"),
     path("rx/<uuid:pk>/print/", views.rx_print, name="rx_print"),
     path("encounters/<uuid:encounter_pk>/prescribe/", views.rx_prescribe, name="rx_prescribe"),
+    path("catalogue/", views.drug_catalogue, name="catalogue"),
+    path("catalogue/new/", views.drug_create, name="drug_create"),
+    path("drugs/<uuid:pk>/edit/", views.drug_edit, name="drug_edit"),
+    path("drugs/<uuid:drug_pk>/receive/", views.stock_receive, name="stock_receive"),
 ]

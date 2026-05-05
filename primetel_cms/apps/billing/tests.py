@@ -1,4 +1,4 @@
-"""Tests for billing math and payment lifecycle."""
+"""Tests for billing math, payment lifecycle, and consultation auto-charge."""
 from datetime import date
 from decimal import Decimal
 
@@ -6,7 +6,9 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
-from apps.billing.models import Invoice, InvoiceLine, Payment
+from apps.billing.consultation import auto_charge, consultation_code
+from apps.billing.models import Invoice, InvoiceLine, Payment, ServiceItem
+from apps.encounters.models import Encounter
 from apps.patients.models import Patient
 
 User = get_user_model()
@@ -79,3 +81,82 @@ def test_payment_blocked_on_cancelled_invoice(invoice, cashier):
     invoice.save()
     with pytest.raises(ValidationError):
         Payment.objects.create(invoice=invoice, method="CASH", amount_tzs=Decimal("1000"), received_by=cashier)
+
+
+# ─── Consultation auto-charge ────────────────────────────────────
+
+
+@pytest.fixture
+def patient_two(db):
+    return Patient.objects.create(full_name="Returning Patient", sex="M", date_of_birth=date(1980, 1, 1))
+
+
+@pytest.fixture
+def cons_new_service(db):
+    return ServiceItem.objects.create(
+        code="CONS-NEW", name="New patient consultation",
+        category="CONSULT", unit_price_tzs=Decimal("5000"), is_active=True,
+    )
+
+
+@pytest.fixture
+def cons_fu_service(db):
+    return ServiceItem.objects.create(
+        code="CONS-FU", name="Follow-up consultation",
+        category="CONSULT", unit_price_tzs=Decimal("3000"), is_active=True,
+    )
+
+
+@pytest.mark.django_db
+def test_first_encounter_charged_as_new(patient_two, cashier, cons_new_service, cons_fu_service):
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="GENERAL")
+    assert consultation_code(enc) == "CONS-NEW"
+    inv = auto_charge(enc, cashier)
+    assert inv is not None
+    assert inv.total_tzs == Decimal("5000")
+    line = inv.lines.get()
+    assert line.unit_price_tzs == Decimal("5000")
+    assert "New patient" in line.description
+
+
+@pytest.mark.django_db
+def test_followup_after_finalised_encounter(patient_two, cashier, cons_new_service, cons_fu_service):
+    # Pre-existing finalised encounter makes this patient a follow-up.
+    Encounter.objects.create(
+        patient=patient_two, clinician=cashier, encounter_type="GENERAL",
+        chief_complaint="x", assessment="y", status="FINALISED",
+    )
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="GENERAL")
+    assert consultation_code(enc) == "CONS-FU"
+    inv = auto_charge(enc, cashier)
+    assert inv.total_tzs == Decimal("3000")
+
+
+@pytest.mark.django_db
+def test_mh_consultation_uses_mh_price(patient_two, cashier):
+    ServiceItem.objects.create(
+        code="CONS-MH", name="MH consult", category="CONSULT",
+        unit_price_tzs=Decimal("10000"), is_active=True,
+    )
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="MENTAL_HEALTH")
+    assert consultation_code(enc) == "CONS-MH"
+    inv = auto_charge(enc, cashier)
+    assert inv.total_tzs == Decimal("10000")
+
+
+@pytest.mark.django_db
+def test_auto_charge_is_idempotent(patient_two, cashier, cons_new_service, cons_fu_service):
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="GENERAL")
+    inv1 = auto_charge(enc, cashier)
+    inv2 = auto_charge(enc, cashier)
+    assert inv1.pk == inv2.pk
+    assert Invoice.objects.filter(encounter=enc).count() == 1
+
+
+@pytest.mark.django_db
+def test_auto_charge_falls_back_when_service_missing(patient_two, cashier):
+    # No ServiceItem exists — should still create an invoice using DEFAULTS.
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="GENERAL")
+    inv = auto_charge(enc, cashier)
+    assert inv is not None
+    assert inv.total_tzs == Decimal("5000")

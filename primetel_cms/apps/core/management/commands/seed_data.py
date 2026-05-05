@@ -177,10 +177,10 @@ LAB_TESTS = [
 
 
 SERVICE_ITEMS = [
-    ("CONS-GP", "General Consultation", "CONSULT", "5000"),
-    ("CONS-FU", "Follow-up Consultation", "CONSULT", "3000"),
-    ("CONS-MH", "Mental Health Consultation", "CONSULT", "10000"),
-    ("CONS-ANC", "Antenatal Consultation", "CONSULT", "3000"),
+    ("CONS-NEW", "New patient consultation", "CONSULT", "5000"),
+    ("CONS-FU", "Follow-up consultation", "CONSULT", "3000"),
+    ("CONS-MH", "Mental health consultation", "CONSULT", "10000"),
+    ("CONS-ANC", "Antenatal consultation", "CONSULT", "3000"),
     ("PROC-DRESS", "Wound Dressing", "PROCEDURE", "3000"),
     ("PROC-SUTURE", "Suturing (small)", "PROCEDURE", "10000"),
     ("PROC-INJ", "Injection administration", "PROCEDURE", "1000"),
