@@ -11,10 +11,27 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
+from apps.core.models import AuditLog
 from apps.core.pdf import render_pdf
 from apps.encounters.models import Encounter
 
 from .models import LabOrder, LabResult, LabTest
+
+
+def _audit(request, action, obj, **metadata):
+    """Record an AuditLog entry for amendment-style changes."""
+    try:
+        AuditLog.objects.create(
+            actor=request.user,
+            action=action,
+            entity_type=obj.__class__.__name__,
+            entity_id=getattr(obj, "pk", None),
+            metadata=metadata,
+            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip() or None,
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+        )
+    except Exception:
+        pass
 
 
 @requires_role("LAB", "CLINICIAN", "ADMIN")
@@ -133,6 +150,50 @@ def lab_review(request, pk):
     order.updated_by = request.user
     order.save(update_fields=["status", "reviewed_at", "updated_by", "updated_at"])
     messages.success(request, _("Marked as reviewed."))
+    return redirect("lab:order_detail", pk=pk)
+
+
+@require_POST
+@requires_role("LAB", "CLINICIAN", "ADMIN")
+def lab_amend_result(request, pk):
+    """Reopen a REVIEWED lab order so its result can be corrected. Requires a reason."""
+    order = get_object_or_404(LabOrder, pk=pk)
+    if order.status != "REVIEWED":
+        messages.error(request, _("Only reviewed results can be amended. Edit the result directly otherwise."))
+        return redirect("lab:order_detail", pk=pk)
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to amend a reviewed result."))
+        return redirect("lab:order_detail", pk=pk)
+    order.status = "RESULTED"
+    order.reviewed_at = None
+    order.updated_by = request.user
+    order.save(update_fields=["status", "reviewed_at", "updated_by", "updated_at"])
+    _audit(request, "UPDATE", order, change="amend_reviewed_result", reason=reason)
+    messages.success(request, _("Result reopened for correction. Reason recorded; previous values retained in history."))
+    return redirect("lab:order_detail", pk=pk)
+
+
+@require_POST
+@requires_role("CLINICIAN", "LAB", "ADMIN")
+def lab_cancel(request, pk):
+    """Cancel a mistakenly-ordered test. Only allowed before result entry."""
+    order = get_object_or_404(LabOrder, pk=pk)
+    if order.status not in ("ORDERED", "COLLECTED"):
+        messages.error(request, _("Only un-resulted orders can be cancelled. Resulted orders must be amended."))
+        return redirect("lab:order_detail", pk=pk)
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to cancel an order."))
+        return redirect("lab:order_detail", pk=pk)
+    order.status = "CANCELLED"
+    order.external_reference = (
+        (order.external_reference + " | " if order.external_reference else "")
+        + f"CANCELLED by {request.user}: {reason}"
+    )[:100]
+    order.updated_by = request.user
+    order.save(update_fields=["status", "external_reference", "updated_by", "updated_at"])
+    messages.success(request, _("Order cancelled."))
     return redirect("lab:order_detail", pk=pk)
 
 

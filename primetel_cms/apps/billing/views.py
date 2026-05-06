@@ -10,10 +10,27 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
+from apps.core.models import AuditLog
 from apps.core.pdf import render_pdf
 from apps.patients.models import Patient
 
 from .models import Invoice, InvoiceLine, Payment, ServiceItem
+
+
+def _audit(request, action, obj, **metadata):
+    """Record an AuditLog entry for amendment-style changes."""
+    try:
+        AuditLog.objects.create(
+            actor=request.user,
+            action=action,
+            entity_type=obj.__class__.__name__,
+            entity_id=getattr(obj, "pk", None),
+            metadata=metadata,
+            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip() or None,
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+        )
+    except Exception:
+        pass
 
 
 @requires_role("RECEPTIONIST", "FINANCE", "ADMIN")
@@ -135,6 +152,59 @@ def payment_record(request, pk):
             created_by=request.user,
         )
         messages.success(request, _("Payment recorded."))
+    except ValidationError as e:
+        messages.error(request, str(e))
+    return redirect("billing:invoice_detail", pk=pk)
+
+
+@require_POST
+@requires_role("FINANCE", "RECEPTIONIST", "ADMIN")
+def invoice_remove_line(request, pk, line_pk):
+    """Remove a line from an open invoice (DRAFT/ISSUED/PARTIALLY_PAID)."""
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if invoice.status not in ("DRAFT", "ISSUED", "PARTIALLY_PAID"):
+        messages.error(request, _("This invoice is closed."))
+        return redirect("billing:invoice_detail", pk=pk)
+    line = get_object_or_404(InvoiceLine, pk=line_pk, invoice=invoice)
+    description = line.description
+    line.delete()
+    invoice.recalculate()
+    _audit(request, "DELETE", invoice, change="remove_invoice_line", line=description)
+    messages.success(request, _("Line removed."))
+    return redirect("billing:invoice_detail", pk=pk)
+
+
+@require_POST
+@requires_role("FINANCE", "ADMIN")
+def payment_void(request, pk, payment_pk):
+    """Void a recorded payment by creating a reversing entry. Original stays in history."""
+    invoice = get_object_or_404(Invoice, pk=pk)
+    payment = get_object_or_404(Payment, pk=payment_pk, invoice=invoice)
+    if payment.amount_tzs <= 0:
+        messages.error(request, _("This payment is already a reversal or zero."))
+        return redirect("billing:invoice_detail", pk=pk)
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to void a payment."))
+        return redirect("billing:invoice_detail", pk=pk)
+    if invoice.status in ("CANCELLED", "WAIVED"):
+        messages.error(request, _("Cannot void payments on a closed invoice."))
+        return redirect("billing:invoice_detail", pk=pk)
+    try:
+        # Reopen the invoice so the reversing Payment.save() doesn't reject it.
+        if invoice.status == "PAID":
+            invoice.status = "PARTIALLY_PAID"
+            invoice.save(update_fields=["status"])
+        Payment.objects.create(
+            invoice=invoice,
+            method=payment.method,
+            amount_tzs=-payment.amount_tzs,
+            reference=f"VOID of {payment.pk}: {reason}"[:100],
+            received_by=request.user,
+            created_by=request.user,
+        )
+        _audit(request, "UPDATE", invoice, change="void_payment", original_payment_id=str(payment.pk), reason=reason)
+        messages.success(request, _("Payment voided. Reversing entry created."))
     except ValidationError as e:
         messages.error(request, str(e))
     return redirect("billing:invoice_detail", pk=pk)

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% trans "Prescribe" %}{% endblock %}
+{% block title %}{{ page_title|default:_("Prescribe") }}{% endblock %}
 
 {% block page_header %}
 <div class="mb-6">
-    <h1 class="text-2xl font-bold text-slate-800">{% trans "Prescribe" %}</h1>
+    <h1 class="text-2xl font-bold text-slate-800">{{ page_title|default:_("Prescribe") }}</h1>
     <p class="text-sm text-slate-500 mt-0.5">{{ encounter.patient.full_name }} — {{ encounter.patient.patient_number }}</p>
 </div>
 {% endblock %}
@@ -27,7 +27,7 @@
     </div>
     {% endif %}
 
-    <form method="post" class="space-y-4">
+    <form method="post" action="{% if rx %}{% url 'pharmacy:rx_edit' rx.pk %}{% else %}{% url 'pharmacy:rx_prescribe' encounter.pk %}{% endif %}" class="space-y-4">
         {% csrf_token %}
         <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Drug" %}</label>
@@ -76,7 +76,7 @@
 
         <div class="flex gap-3 pt-2">
             <button type="submit" class="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700" id="prescribe-submit">
-                {% trans "Add prescription" %}
+                {% if rx %}{% trans "Save changes" %}{% else %}{% trans "Add prescription" %}{% endif %}
             </button>
             <a href="{% url 'encounters:detail' encounter.pk %}" class="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800">{% trans "Cancel" %}</a>
         </div>

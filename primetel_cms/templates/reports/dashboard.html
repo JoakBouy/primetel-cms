@@ -106,15 +106,33 @@
                 </div>
             </div>
         </div>
-        <canvas id="patientVolumeChart" height="200"></canvas>
+        <div class="relative" style="height: 240px;">
+            <canvas id="patientVolumeChart"></canvas>
+        </div>
     </div>
 
     <!-- Top Diagnoses -->
     <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="chart-top-diagnoses">
         <h3 class="text-sm font-semibold text-slate-800 mb-1">{% trans "Top Diagnoses" %}</h3>
-        <p class="text-xs text-slate-400 mb-6">{% trans "This week" %}</p>
-        <div class="space-y-4">
-            <p class="text-xs text-slate-400 text-center py-8">{% trans "No data yet" %}</p>
+        <p class="text-xs text-slate-400 mb-6">{% trans "Last 7 days" %}</p>
+        <div class="space-y-3">
+            {% if top_diagnoses %}
+                {% for dx in top_diagnoses %}
+                <div>
+                    <div class="flex items-baseline justify-between gap-2 mb-1">
+                        <p class="text-xs font-medium text-slate-700 truncate">
+                            {% if dx.icd10_code %}<span class="font-mono text-[10px] text-primary-600 mr-1">{{ dx.icd10_code }}</span>{% endif %}{{ dx.description }}
+                        </p>
+                        <span class="text-xs font-semibold text-slate-800 shrink-0">{{ dx.n }}</span>
+                    </div>
+                    <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-primary-500 rounded-full" style="width: {% widthratio dx.n top_dx_max 100 %}%;"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-xs text-slate-400 text-center py-8">{% trans "No diagnoses recorded this week" %}</p>
+            {% endif %}
         </div>
     </div>
 </div>

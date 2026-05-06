@@ -2,16 +2,41 @@
 {% if diagnoses %}
 <div class="space-y-2">
     {% for dx in diagnoses %}
-    <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-        {% if dx.is_primary %}
-        <span class="w-5 h-5 bg-warning-100 rounded-full flex items-center justify-center text-warning-600 text-[10px]">★</span>
-        {% else %}
-        <span class="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 text-[10px]">•</span>
-        {% endif %}
-        <div>
-            <p class="text-xs font-medium text-slate-800">{{ dx.description }}</p>
-            {% if dx.icd10_code %}<p class="text-[10px] text-slate-400 font-mono">{{ dx.icd10_code }}</p>{% endif %}
+    <div class="p-2 bg-slate-50 rounded-lg" x-data="{ editing: false }">
+        <div class="flex items-center gap-2">
+            {% if dx.is_primary %}
+            <span class="w-5 h-5 bg-warning-100 rounded-full flex items-center justify-center text-warning-600 text-[10px]">★</span>
+            {% else %}
+            <span class="w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 text-[10px]">•</span>
+            {% endif %}
+            <div class="flex-1 min-w-0" x-show="!editing">
+                <p class="text-xs font-medium text-slate-800">{{ dx.description }}</p>
+                {% if dx.icd10_code %}<p class="text-[10px] text-slate-400 font-mono">{{ dx.icd10_code }}</p>{% endif %}
+            </div>
+            {% if encounter.status != "FINALISED" %}
+            <div class="flex gap-2 ml-auto" x-show="!editing">
+                <button type="button" @click="editing = true" class="text-[10px] text-primary-600 hover:underline" id="dx-edit-{{ dx.pk }}">{% trans "Edit" %}</button>
+                <form method="post" action="{% url 'encounters:diagnosis_delete' dx.pk %}" hx-post="{% url 'encounters:diagnosis_delete' dx.pk %}" hx-target="#diagnoses-panel" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-[10px] text-danger-600 hover:underline" onclick="return confirm('{% trans "Delete this diagnosis?" %}')" id="dx-delete-{{ dx.pk }}">{% trans "Delete" %}</button>
+                </form>
+            </div>
+            {% endif %}
         </div>
+        {% if encounter.status != "FINALISED" %}
+        <form x-show="editing" x-transition method="post" action="{% url 'encounters:diagnosis_edit' dx.pk %}" hx-post="{% url 'encounters:diagnosis_edit' dx.pk %}" hx-target="#diagnoses-panel" class="space-y-2 mt-2">
+            {% csrf_token %}
+            <input type="text" name="icd10_code" value="{{ dx.icd10_code }}" placeholder="ICD-10 (optional)" class="form-input text-xs py-2 w-full">
+            <input type="text" name="description" value="{{ dx.description }}" placeholder="{% trans 'Diagnosis description' %}" class="form-input text-xs py-2 w-full" required>
+            <label class="flex items-center gap-2 text-xs text-slate-600">
+                <input type="checkbox" name="is_primary" {% if dx.is_primary %}checked{% endif %} class="rounded text-primary-500"> {% trans "Primary" %}
+            </label>
+            <div class="flex gap-2">
+                <button type="submit" class="flex-1 btn btn-primary text-xs py-2 justify-center">{% trans "Save" %}</button>
+                <button type="button" @click="editing = false" class="px-3 text-xs text-slate-500">{% trans "Cancel" %}</button>
+            </div>
+        </form>
+        {% endif %}
     </div>
     {% endfor %}
 </div>

@@ -15,4 +15,8 @@ urlpatterns = [
     path("<uuid:pk>/diagnosis/", views.encounter_add_diagnosis, name="add_diagnosis"),
     path("<uuid:pk>/finalise/", views.encounter_finalise, name="finalise"),
     path("<uuid:pk>/amend/", views.encounter_amend, name="amend"),
+    path("vitals/<uuid:pk>/edit/", views.vitals_edit, name="vitals_edit"),
+    path("vitals/<uuid:pk>/delete/", views.vitals_delete, name="vitals_delete"),
+    path("diagnosis/<uuid:pk>/edit/", views.diagnosis_edit, name="diagnosis_edit"),
+    path("diagnosis/<uuid:pk>/delete/", views.diagnosis_delete, name="diagnosis_delete"),
 ]

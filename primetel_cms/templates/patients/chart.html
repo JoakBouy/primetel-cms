@@ -228,12 +228,34 @@
         {% if prescriptions %}
         <div class="space-y-2">
             {% for rx in prescriptions %}
-            <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
-                <div class="min-w-0">
-                    <p class="text-sm font-medium text-slate-800 truncate">{{ rx.drug }}</p>
-                    <p class="text-xs text-slate-500">{{ rx.dose }} — {{ rx.frequency }} × {{ rx.duration_days }}d · {{ rx.prescribed_at|date:"d M Y" }}</p>
+            <div class="p-3 rounded-xl border border-slate-100" x-data="{ showVoid: false }">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-800 truncate">{{ rx.drug }}</p>
+                        <p class="text-xs text-slate-500">{{ rx.dose }} — {{ rx.frequency }} × {{ rx.duration_days }}d · {{ rx.prescribed_at|date:"d M Y" }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="badge badge-{{ rx.status|lower }} text-[10px]">{{ rx.get_status_display }}</span>
+                        {% if rx.status == "DISPENSED" or rx.status == "PARTIALLY_DISPENSED" %}
+                        {% if user.is_superuser or user.role.code == "PHARMACY" or user.role.code == "ADMIN" %}
+                        <button type="button" @click="showVoid = !showVoid" class="text-[10px] text-danger-600 hover:underline" id="rx-void-toggle-{{ rx.pk }}">{% trans "Void" %}</button>
+                        {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
-                <span class="badge badge-{{ rx.status|lower }} text-[10px] shrink-0">{{ rx.get_status_display }}</span>
+                {% if rx.status == "DISPENSED" or rx.status == "PARTIALLY_DISPENSED" %}
+                {% if user.is_superuser or user.role.code == "PHARMACY" or user.role.code == "ADMIN" %}
+                <form method="post" action="{% url 'pharmacy:rx_void' rx.pk %}" x-show="showVoid" x-transition class="mt-2 space-y-2">
+                    {% csrf_token %}
+                    <p class="text-xs text-slate-500">{% trans "Voiding will return the dispensed quantity to stock and mark the prescription cancelled. The original dispense record stays in history." %}</p>
+                    <textarea name="reason" rows="2" required placeholder="{% trans 'Reason for voiding (required)' %}" class="w-full text-xs rounded-lg border border-slate-200 px-2 py-1"></textarea>
+                    <div class="flex gap-2">
+                        <button type="submit" class="text-xs px-3 py-1.5 bg-danger-600 text-white rounded-lg" onclick="return confirm('{% trans "Void this prescription and return stock?" %}')">{% trans "Confirm void" %}</button>
+                        <button type="button" @click="showVoid = false" class="text-xs px-3 py-1.5 text-slate-500">{% trans "Cancel" %}</button>
+                    </div>
+                </form>
+                {% endif %}
+                {% endif %}
             </div>
             {% endfor %}
         </div>

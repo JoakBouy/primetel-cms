@@ -12,9 +12,27 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
+from apps.core.models import AuditLog
 from apps.patients.models import Patient
 
 from .models import Encounter, Vitals, Diagnosis
+
+
+def _audit(request, action, obj, **metadata):
+    """Record an entry in AuditLog for amendment-style changes."""
+    try:
+        AuditLog.objects.create(
+            actor=request.user,
+            action=action,
+            entity_type=obj.__class__.__name__,
+            entity_id=getattr(obj, "pk", None),
+            metadata=metadata,
+            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip() or None,
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+        )
+    except Exception:
+        # Audit failures must never block the clinical action.
+        pass
 
 
 def _get_encounter_for_user(user, pk):
@@ -221,11 +239,102 @@ def encounter_finalise(request, pk):
 @require_POST
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_amend(request, pk):
-    """Amend a finalised encounter."""
+    """Amend a finalised encounter — requires a documented reason."""
     encounter = _get_encounter_for_user(request.user, pk)
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to amend a finalised encounter."))
+        return redirect("encounters:detail", pk=pk)
     try:
         encounter.amend(user=request.user)
-        messages.success(request, _("Encounter reopened for amendment."))
+        _audit(request, "UPDATE", encounter, change="amend_finalised_encounter", reason=reason)
+        messages.success(request, _("Encounter reopened for amendment. Reason recorded."))
     except Exception as e:
         messages.error(request, str(e))
     return redirect("encounters:detail", pk=pk)
+
+
+@require_POST
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
+def vitals_edit(request, pk):
+    """Edit a vitals row — only on a non-finalised encounter."""
+    vitals = get_object_or_404(Vitals.objects.select_related("encounter"), pk=pk)
+    encounter = _get_encounter_for_user(request.user, vitals.encounter_id)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=encounter.pk)
+    field_map = {
+        "blood_pressure_systolic": "bp_systolic",
+        "blood_pressure_diastolic": "bp_diastolic",
+        "temperature": "temperature",
+        "pulse": "pulse",
+        "respiratory_rate": "respiratory_rate",
+        "spo2": "spo2",
+        "weight_kg": "weight_kg",
+        "height_cm": "height_cm",
+    }
+    for model_field, post_key in field_map.items():
+        raw = (request.POST.get(post_key) or "").strip()
+        setattr(vitals, model_field, raw or None)
+    vitals.updated_by = request.user
+    vitals.save()
+    if request.headers.get("HX-Request"):
+        return render(request, "encounters/partials/vitals_list.html", {"vitals": encounter.vitals.all(), "encounter": encounter})
+    return redirect("encounters:detail", pk=encounter.pk)
+
+
+@require_POST
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
+def vitals_delete(request, pk):
+    """Delete a vitals row — only on a non-finalised encounter."""
+    vitals = get_object_or_404(Vitals.objects.select_related("encounter"), pk=pk)
+    encounter = _get_encounter_for_user(request.user, vitals.encounter_id)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=encounter.pk)
+    vitals.delete()
+    if request.headers.get("HX-Request"):
+        return render(request, "encounters/partials/vitals_list.html", {"vitals": encounter.vitals.all(), "encounter": encounter})
+    return redirect("encounters:detail", pk=encounter.pk)
+
+
+@require_POST
+@requires_role("CLINICIAN", "ADMIN")
+def diagnosis_edit(request, pk):
+    """Edit a diagnosis — only on a non-finalised encounter."""
+    dx = get_object_or_404(Diagnosis.objects.select_related("encounter"), pk=pk)
+    encounter = _get_encounter_for_user(request.user, dx.encounter_id)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=encounter.pk)
+    dx.icd10_code = (request.POST.get("icd10_code") or "").strip()
+    dx.description = (request.POST.get("description") or "").strip()
+    dx.is_primary = request.POST.get("is_primary") == "on"
+    dx.updated_by = request.user
+    dx.save()
+    if request.headers.get("HX-Request"):
+        return render(request, "encounters/partials/diagnosis_list.html", {"diagnoses": encounter.diagnoses.all(), "encounter": encounter})
+    return redirect("encounters:detail", pk=encounter.pk)
+
+
+@require_POST
+@requires_role("CLINICIAN", "ADMIN")
+def diagnosis_delete(request, pk):
+    """Delete a diagnosis — only on a non-finalised encounter."""
+    dx = get_object_or_404(Diagnosis.objects.select_related("encounter"), pk=pk)
+    encounter = _get_encounter_for_user(request.user, dx.encounter_id)
+    try:
+        _ensure_editable(encounter)
+    except Exception as e:
+        messages.error(request, str(e))
+        return redirect("encounters:detail", pk=encounter.pk)
+    dx.delete()
+    if request.headers.get("HX-Request"):
+        return render(request, "encounters/partials/diagnosis_list.html", {"diagnoses": encounter.diagnoses.all(), "encounter": encounter})
+    return redirect("encounters:detail", pk=encounter.pk)

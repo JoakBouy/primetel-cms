@@ -11,11 +11,28 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
+from apps.core.models import AuditLog
 from apps.core.pdf import render_pdf
 from apps.encounters.models import Encounter
 
 from .allergy import check_allergy
 from .models import Dispense, Drug, Prescription, StockItem, StockMovement
+
+
+def _audit(request, action, obj, **metadata):
+    """Record an AuditLog entry for amendment-style changes."""
+    try:
+        AuditLog.objects.create(
+            actor=request.user,
+            action=action,
+            entity_type=obj.__class__.__name__,
+            entity_id=getattr(obj, "pk", None),
+            metadata=metadata,
+            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip() or None,
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+        )
+    except Exception:
+        pass
 
 
 @requires_role("PHARMACY", "ADMIN")
@@ -337,6 +354,107 @@ def drug_toggle_active(request, pk):
 
 
 # ─── Stock adjustment ─────────────────────────────────────────────
+
+@requires_role("CLINICIAN", "ADMIN")
+def rx_edit(request, pk):
+    """Edit a prescription before it has been dispensed."""
+    rx = get_object_or_404(Prescription.objects.select_related("encounter__patient", "drug"), pk=pk)
+    if rx.status != "PRESCRIBED":
+        messages.error(request, _("Only un-dispensed prescriptions can be edited. Use Void to amend a dispensed Rx."))
+        return redirect("encounters:detail", pk=rx.encounter_id)
+    drugs = Drug.objects.filter(is_active=True).order_by("generic_name")
+    if request.method == "POST":
+        try:
+            quantity = int(request.POST.get("quantity") or 0)
+            duration_days = int(request.POST.get("duration_days") or 0)
+        except (TypeError, ValueError):
+            messages.error(request, _("Quantity and duration must be whole numbers."))
+            return redirect("pharmacy:rx_edit", pk=rx.pk)
+        dose = (request.POST.get("dose") or "").strip()
+        frequency = (request.POST.get("frequency") or "").strip()
+        if not dose or not frequency or quantity <= 0 or duration_days <= 0:
+            messages.error(request, _("Dose, frequency, quantity and duration are all required."))
+            return redirect("pharmacy:rx_edit", pk=rx.pk)
+        drug = get_object_or_404(Drug, pk=request.POST.get("drug"))
+        rx.drug = drug
+        rx.dose = dose
+        rx.frequency = frequency
+        rx.duration_days = duration_days
+        rx.quantity = quantity
+        rx.instructions = request.POST.get("instructions", "")
+        rx.updated_by = request.user
+        rx.save()
+        messages.success(request, _("Prescription updated."))
+        return redirect("encounters:detail", pk=rx.encounter_id)
+    return render(request, "pharmacy/prescribe.html", {
+        "page_title": _("Edit prescription"),
+        "encounter": rx.encounter,
+        "drugs": drugs,
+        "rx": rx,
+        "form_data": {
+            "drug": str(rx.drug_id), "dose": rx.dose, "frequency": rx.frequency,
+            "duration_days": rx.duration_days, "quantity": rx.quantity, "instructions": rx.instructions,
+        },
+    })
+
+
+@require_POST
+@requires_role("CLINICIAN", "ADMIN")
+def rx_cancel(request, pk):
+    """Cancel an un-dispensed prescription with a reason."""
+    rx = get_object_or_404(Prescription, pk=pk)
+    if rx.status != "PRESCRIBED":
+        messages.error(request, _("Only un-dispensed prescriptions can be cancelled. Use Void to reverse a dispensed Rx."))
+        return redirect("encounters:detail", pk=rx.encounter_id)
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to cancel a prescription."))
+        return redirect("encounters:detail", pk=rx.encounter_id)
+    rx.status = "CANCELLED"
+    rx.instructions = (f"[CANCELLED by {request.user}: {reason}]\n" + rx.instructions).strip()
+    rx.updated_by = request.user
+    rx.save(update_fields=["status", "instructions", "updated_by", "updated_at"])
+    _audit(request, "UPDATE", rx, change="cancel_prescription", reason=reason)
+    messages.success(request, _("Prescription cancelled. Reason recorded."))
+    return redirect("encounters:detail", pk=rx.encounter_id)
+
+
+@require_POST
+@requires_role("PHARMACY", "ADMIN")
+def rx_void(request, pk):
+    """Void a dispensed prescription. Returns dispensed quantities back to stock."""
+    rx = get_object_or_404(Prescription.objects.select_related("encounter"), pk=pk)
+    if rx.status not in ("DISPENSED", "PARTIALLY_DISPENSED"):
+        messages.error(request, _("Only dispensed prescriptions can be voided."))
+        return redirect("pharmacy:rx_queue")
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, _("A reason is required to void a dispensed prescription."))
+        return redirect("pharmacy:rx_queue")
+    from django.db import transaction
+    with transaction.atomic():
+        # Reverse every dispense by returning stock and recording a corrective movement.
+        for d in rx.dispenses.select_related("stock_item").all():
+            stock = StockItem.objects.select_for_update().get(pk=d.stock_item_id)
+            stock.quantity_on_hand += d.quantity_dispensed
+            stock.save(update_fields=["quantity_on_hand"])
+            StockMovement.objects.create(
+                stock_item=stock,
+                movement_type="ADJUST",
+                quantity=d.quantity_dispensed,
+                reference_id=rx.pk,
+                performed_by=request.user,
+            )
+        rx.status = "CANCELLED"
+        rx.instructions = (
+            f"[VOIDED by {request.user}: {reason}]\n" + rx.instructions
+        ).strip()
+        rx.updated_by = request.user
+        rx.save(update_fields=["status", "instructions", "updated_by", "updated_at"])
+    _audit(request, "UPDATE", rx, change="void_dispensed_prescription", reason=reason)
+    messages.success(request, _("Prescription voided and stock returned. Reason recorded."))
+    return redirect("pharmacy:rx_queue")
+
 
 @require_POST
 @requires_role("PHARMACY", "ADMIN")

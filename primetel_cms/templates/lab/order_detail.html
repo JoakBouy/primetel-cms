@@ -30,9 +30,9 @@
         </dl>
     </div>
 
-    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" x-data="{ showCancel: false, showAmend: false }">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">{% trans "Workflow" %}</h2>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             {% if order.status == "ORDERED" %}
             <form method="post" action="{% url 'lab:collect' order.pk %}">
                 {% csrf_token %}
@@ -47,11 +47,43 @@
             {% endif %}
             {% if order.status == "REVIEWED" %}
             <span class="text-success-600 text-sm">{% trans "Reviewed by clinician" %} · {{ order.reviewed_at|date:"d/m/Y H:i" }}</span>
+            <button type="button" @click="showAmend = !showAmend" class="ml-auto text-xs text-warning-600 hover:underline" id="lab-amend-toggle">{% trans "Amend result" %}</button>
+            {% endif %}
+            {% if order.status == "CANCELLED" %}
+            <span class="text-danger-600 text-sm">{% trans "Cancelled" %}{% if order.external_reference %} · {{ order.external_reference }}{% endif %}</span>
+            {% endif %}
+            {% if order.status == "ORDERED" or order.status == "COLLECTED" %}
+            <button type="button" @click="showCancel = !showCancel" class="ml-auto text-xs text-danger-600 hover:underline" id="lab-cancel-toggle">
+                {% trans "Cancel order" %}
+            </button>
             {% endif %}
         </div>
+        {% if order.status == "REVIEWED" %}
+        <form method="post" action="{% url 'lab:amend' order.pk %}" x-show="showAmend" x-transition class="mt-4 space-y-2 border-t border-slate-100 pt-4" id="lab-amend-form">
+            {% csrf_token %}
+            <label class="block text-xs font-semibold text-slate-600">{% trans "Reason for amending the reviewed result (required)" %}</label>
+            <p class="text-xs text-slate-500">{% trans "The order will reopen to RESULTED so the value can be corrected. Previous values stay in history." %}</p>
+            <textarea name="reason" rows="2" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="{% trans 'e.g. transcription error, instrument re-calibrated' %}"></textarea>
+            <div class="flex gap-2">
+                <button type="submit" class="px-3 py-1.5 bg-warning-600 text-white text-sm rounded-lg" onclick="return confirm('{% trans "Reopen this reviewed result for correction?" %}')">{% trans "Reopen for correction" %}</button>
+                <button type="button" @click="showAmend = false" class="px-3 py-1.5 text-sm text-slate-600">{% trans "Cancel" %}</button>
+            </div>
+        </form>
+        {% endif %}
+        {% if order.status == "ORDERED" or order.status == "COLLECTED" %}
+        <form method="post" action="{% url 'lab:cancel' order.pk %}" x-show="showCancel" x-transition class="mt-4 space-y-2 border-t border-slate-100 pt-4" id="lab-cancel-form">
+            {% csrf_token %}
+            <label class="block text-xs font-semibold text-slate-600">{% trans "Reason for cancelling (required)" %}</label>
+            <textarea name="reason" rows="2" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="{% trans 'e.g. ordered in error, duplicate of another test…' %}"></textarea>
+            <div class="flex gap-2">
+                <button type="submit" class="px-3 py-1.5 bg-danger-600 text-white text-sm rounded-lg" onclick="return confirm('{% trans "Cancel this order? This cannot be undone." %}')">{% trans "Confirm cancel" %}</button>
+                <button type="button" @click="showCancel = false" class="px-3 py-1.5 text-sm text-slate-600">{% trans "Keep order" %}</button>
+            </div>
+        </form>
+        {% endif %}
     </div>
 
-    {% if order.status not in "REVIEWED,CANCELLED" %}
+    {% if order.status == "ORDERED" or order.status == "COLLECTED" or order.status == "RESULTED" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">{% if result %}{% trans "Update result" %}{% else %}{% trans "Enter result" %}{% endif %}</h2>
         <form method="post" action="{% url 'lab:result_enter' order.pk %}" class="space-y-3">

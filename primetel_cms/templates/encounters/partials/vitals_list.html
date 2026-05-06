@@ -2,9 +2,20 @@
 {% if vitals %}
 <div class="space-y-3">
     {% for v in vitals %}
-    <div class="p-3 bg-slate-50 rounded-xl">
-        <p class="text-[10px] text-slate-400 mb-1.5">{{ v.recorded_at|date:"H:i" }} · {{ v.recorded_by.full_name|default:v.recorded_by.username }}</p>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+    <div class="p-3 bg-slate-50 rounded-xl" x-data="{ editing: false }">
+        <div class="flex items-start justify-between gap-2 mb-1.5">
+            <p class="text-[10px] text-slate-400">{{ v.recorded_at|date:"H:i" }} · {{ v.recorded_by.full_name|default:v.recorded_by.username }}</p>
+            {% if encounter.status != "FINALISED" %}
+            <div class="flex gap-2">
+                <button type="button" @click="editing = !editing" class="text-[10px] text-primary-600 hover:underline" id="vitals-edit-{{ v.pk }}">{% trans "Edit" %}</button>
+                <form method="post" action="{% url 'encounters:vitals_delete' v.pk %}" hx-post="{% url 'encounters:vitals_delete' v.pk %}" hx-target="#vitals-panel" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-[10px] text-danger-600 hover:underline" onclick="return confirm('{% trans "Delete this vitals reading?" %}')" id="vitals-delete-{{ v.pk }}">{% trans "Delete" %}</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        <div x-show="!editing" class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             {% if v.bp_display != "—" %}<div><span class="text-slate-400">BP:</span> <span class="font-medium text-slate-700">{{ v.bp_display }}</span></div>{% endif %}
             {% if v.temperature %}<div><span class="text-slate-400">T°:</span> <span class="font-medium text-slate-700">{{ v.temperature }}°C</span></div>{% endif %}
             {% if v.pulse %}<div><span class="text-slate-400">HR:</span> <span class="font-medium text-slate-700">{{ v.pulse }}</span></div>{% endif %}
@@ -14,6 +25,23 @@
             {% if v.height_cm %}<div><span class="text-slate-400">Ht:</span> <span class="font-medium text-slate-700">{{ v.height_cm }}cm</span></div>{% endif %}
             {% if v.bmi %}<div><span class="text-slate-400">BMI:</span> <span class="font-medium text-slate-700">{{ v.bmi }}</span></div>{% endif %}
         </div>
+        {% if encounter.status != "FINALISED" %}
+        <form x-show="editing" x-transition method="post" action="{% url 'encounters:vitals_edit' v.pk %}" hx-post="{% url 'encounters:vitals_edit' v.pk %}" hx-target="#vitals-panel" class="grid grid-cols-2 gap-2 mt-2">
+            {% csrf_token %}
+            <input type="number" name="bp_systolic" value="{{ v.blood_pressure_systolic|default:'' }}" placeholder="BP Sys" class="form-input text-xs py-2">
+            <input type="number" name="bp_diastolic" value="{{ v.blood_pressure_diastolic|default:'' }}" placeholder="BP Dia" class="form-input text-xs py-2">
+            <input type="number" step="0.1" name="temperature" value="{{ v.temperature|default:'' }}" placeholder="Temp °C" class="form-input text-xs py-2">
+            <input type="number" name="pulse" value="{{ v.pulse|default:'' }}" placeholder="Pulse" class="form-input text-xs py-2">
+            <input type="number" name="respiratory_rate" value="{{ v.respiratory_rate|default:'' }}" placeholder="Resp Rate" class="form-input text-xs py-2">
+            <input type="number" name="spo2" value="{{ v.spo2|default:'' }}" placeholder="SpO₂ %" class="form-input text-xs py-2">
+            <input type="number" step="0.1" name="weight_kg" value="{{ v.weight_kg|default:'' }}" placeholder="Wt (kg)" class="form-input text-xs py-2">
+            <input type="number" step="0.1" name="height_cm" value="{{ v.height_cm|default:'' }}" placeholder="Ht (cm)" class="form-input text-xs py-2">
+            <div class="col-span-2 flex gap-2">
+                <button type="submit" class="flex-1 btn btn-primary text-xs py-2 justify-center">{% trans "Save" %}</button>
+                <button type="button" @click="editing = false" class="px-3 text-xs text-slate-500">{% trans "Cancel" %}</button>
+            </div>
+        </form>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
