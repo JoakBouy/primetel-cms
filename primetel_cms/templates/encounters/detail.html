@@ -269,9 +269,20 @@
                 {% if lab_orders %}
                 <div class="space-y-2">
                     {% for order in lab_orders %}
-                    <a href="{% url 'lab:order_detail' order.pk %}" class="flex items-center justify-between p-2 bg-slate-50 rounded-lg hover:bg-slate-100">
-                        <p class="text-xs font-medium text-slate-800">{{ order.test }}</p>
-                        <span class="badge badge-{{ order.status|lower }} text-[10px]">{{ order.get_status_display }}</span>
+                    <a href="{% url 'lab:order_detail' order.pk %}" class="block p-2 bg-slate-50 rounded-lg hover:bg-slate-100">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-xs font-medium text-slate-800">{{ order.test }}</p>
+                            <span class="badge badge-{{ order.status|lower }} text-[10px]">{{ order.get_status_display }}</span>
+                        </div>
+                        {% if order.result %}
+                        <p class="mt-1 text-[11px] text-slate-500">
+                            {% trans "Result" %}:
+                            <span class="font-mono text-slate-700">
+                                {% if order.result.value_numeric is not None %}{{ order.result.value_numeric }}{% if order.test.reference_unit %} {{ order.test.reference_unit }}{% endif %}{% else %}{{ order.result.value_text|truncatechars:36 }}{% endif %}
+                            </span>
+                            {% if order.result.flag %}<span class="badge badge-{{ order.result.flag|lower }} text-[9px] ml-1">{{ order.result.get_flag_display }}</span>{% endif %}
+                        </p>
+                        {% endif %}
                     </a>
                     {% endfor %}
                 </div>

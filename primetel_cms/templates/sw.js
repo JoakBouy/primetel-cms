@@ -1,6 +1,5 @@
-const CACHE_NAME = 'primetel-cms-v2';
+const CACHE_NAME = 'primetel-cms-v3';
 const ASSETS_TO_CACHE = [
-    '/',
     '/static/css/custom.css',
     '/static/img/logo.png',
     '/static/vendor/tailwind-3.4.cdn.js',
@@ -16,37 +15,39 @@ self.addEventListener('install', (event) => {
             return cache.addAll(ASSETS_TO_CACHE);
         })
     );
+    self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    const url = new URL(request.url);
+
+    if (request.method !== 'GET' || url.origin !== self.location.origin) {
+        return;
+    }
+
+    if (!url.pathname.startsWith('/static/')) {
+        event.respondWith(fetch(request));
+        return;
+    }
+
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            // Return cached response if found
+        caches.match(request).then((response) => {
             if (response) {
                 return response;
             }
-            
-            // Otherwise try to fetch from network
-            return fetch(event.request).then((networkResponse) => {
-                // If the fetch fails or is not a valid response, just return it
+
+            return fetch(request).then((networkResponse) => {
                 if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
                     return networkResponse;
                 }
-                
-                // Clone the response because it's a stream
+
                 const responseToCache = networkResponse.clone();
-                
-                // Cache the new resource for future
                 caches.open(CACHE_NAME).then((cache) => {
-                    if (event.request.method === 'GET' && !event.request.url.includes('/api/')) {
-                        cache.put(event.request, responseToCache);
-                    }
+                    cache.put(request, responseToCache);
                 });
-                
+
                 return networkResponse;
-            }).catch(() => {
-                // Return offline fallback if we had one
-                // return caches.match('/offline.html');
             });
         })
     );
@@ -65,4 +66,5 @@ self.addEventListener('activate', (event) => {
             );
         })
     );
+    self.clients.claim();
 });

@@ -31,7 +31,7 @@
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
     {% if orders %}
     <table class="data-table">
-        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Result" %}</th><th>{% trans "Flag" %}</th><th>{% trans "Status" %}</th><th>{% trans "Resulted" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>Result</th><th>Flag</th><th>Status</th><th>Resulted</th><th class="text-right">Actions</th></tr></thead>
         <tbody>
             {% for order in orders %}
             <tr>
@@ -51,7 +51,7 @@
                 </td>
                 <td><span class="badge badge-{{ order.status|lower }}">{{ order.get_status_display }}</span></td>
                 <td class="text-xs text-slate-400">{% if order.resulted_at %}{{ order.resulted_at|timesince }} {% trans "ago" %}{% else %}—{% endif %}</td>
-                <td class="text-right"><a href="{% url 'lab:order_detail' order.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">{% trans "View" %}</a></td>
+                <td class="text-right"><a href="{% url 'lab:order_detail' order.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">View / Edit</a></td>
             </tr>
             {% endfor %}
         </tbody>

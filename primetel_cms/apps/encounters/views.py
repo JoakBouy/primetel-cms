@@ -10,10 +10,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
+from django.db.models import Prefetch
 
 from apps.accounts.decorators import requires_role
 from apps.core.models import AuditLog
 from apps.patients.models import Patient
+from apps.lab.models import LabOrder
 
 from .models import Encounter, Vitals, Diagnosis
 
@@ -133,7 +135,23 @@ def encounter_new_mh(request):
 @login_required
 def encounter_detail(request, pk):
     """Encounter detail — the main clinician screen (SOAP form)."""
-    encounter = _get_encounter_for_user(request.user, pk)
+    try:
+        encounter = (
+            Encounter.objects.for_user(request.user)
+            .select_related("patient", "clinician")
+            .prefetch_related(
+                "vitals",
+                "diagnoses",
+                "prescriptions__drug",
+                Prefetch(
+                    "lab_orders",
+                    queryset=LabOrder.objects.select_related("test", "result").order_by("-ordered_at"),
+                ),
+            )
+            .get(pk=pk)
+        )
+    except Encounter.DoesNotExist:
+        raise Http404("Encounter not found")
     mh_assessment = getattr(encounter, "mental_health_assessment", None)
     # Invoice for this encounter (created automatically on encounter open).
     from apps.billing.models import Invoice

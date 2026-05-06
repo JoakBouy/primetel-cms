@@ -16,7 +16,7 @@ th, td { padding: 2mm 1mm; border-bottom: 1px solid #e2e8f0; font-size: 10pt; te
 <p class="muted">{{ now|date:"d/m/Y H:i" }} · Order #{{ order.pk|stringformat:"s"|slice:":8" }}</p>
 <div class="box">
     <strong>{% trans "Patient" %}:</strong> {{ order.encounter.patient.full_name }}
-    &nbsp; <strong>{% trans "No" %}:</strong> {{ order.encounter.patient.patient_number }}
+    &nbsp; <strong>{% trans "Patient No." %}:</strong> {{ order.encounter.patient.patient_number }}
     &nbsp; <strong>{% trans "Sex" %}:</strong> {{ order.encounter.patient.sex_display }}
     &nbsp; <strong>{% trans "Age" %}:</strong> {{ order.encounter.patient.age_display }}
 </div>
@@ -26,7 +26,7 @@ th, td { padding: 2mm 1mm; border-bottom: 1px solid #e2e8f0; font-size: 10pt; te
         <tr>
             <td>{{ order.test.code }} — {{ order.test.name }}</td>
             <td>{{ order.test.get_specimen_type_display }}</td>
-            <td>{% if result %}{{ result.value_numeric|default:result.value_text }} {{ order.test.reference_unit }}{% else %}—{% endif %}</td>
+            <td>{% if result %}{{ result.value_numeric|default:result.value_text }}{% if result.value_numeric is not None and order.test.reference_unit %} {{ order.test.reference_unit }}{% endif %}{% else %}—{% endif %}</td>
             <td>{{ order.test.reference_range_min|default:"–" }}–{{ order.test.reference_range_max|default:"–" }}</td>
             <td class="flag-{{ result.flag|default:'' }}">{{ result.get_flag_display|default:"—" }}</td>
         </tr>

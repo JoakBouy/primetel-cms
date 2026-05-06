@@ -510,7 +510,10 @@
         <!-- Django Messages as Toasts -->
         {% if messages %}
         <script>
-            document.addEventListener('alpine:init', () => {
+            let djangoMessagesDispatched = false;
+            function dispatchDjangoMessages() {
+                if (djangoMessagesDispatched) return;
+                djangoMessagesDispatched = true;
                 setTimeout(() => {
                     {% for message in messages %}
                     window.dispatchEvent(new CustomEvent('toast', {
@@ -521,7 +524,9 @@
                     }));
                     {% endfor %}
                 }, 100);
-            });
+            }
+            document.addEventListener('alpine:init', dispatchDjangoMessages, { once: true });
+            window.addEventListener('load', dispatchDjangoMessages, { once: true });
         </script>
         {% endif %}
 

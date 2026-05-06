@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from apps.accounts.models import Role
@@ -111,3 +112,43 @@ def test_lab_result_requires_value(client, order, lab_user):
     resp = client.post(reverse("lab:result_enter", args=[order.pk]), data={})
     assert resp.status_code == 302
     assert not LabResult.objects.filter(lab_order=order).exists()
+
+
+@pytest.mark.django_db
+def test_lab_detail_shows_collected_state(client, order, lab_user):
+    client.force_login(lab_user)
+    order.status = "COLLECTED"
+    order.save(update_fields=["status"])
+
+    resp = client.get(reverse("lab:order_detail", args=[order.pk]))
+
+    assert resp.status_code == 200
+    assert b"Sample collected" in resp.content
+    assert b"lab-collected-state" in resp.content
+
+
+@pytest.mark.django_db
+def test_lab_print_uses_patient_number_label(order):
+    html = render_to_string("lab/order_print.html", {"order": order, "result": None})
+
+    assert "Patient No." in html
+    assert order.encounter.patient.patient_number in html
+
+
+@pytest.mark.django_db
+def test_encounter_dashboard_shows_lab_result(client, order, clinician, lab_user):
+    LabResult.objects.create(
+        lab_order=order,
+        value_numeric=Decimal("13.5"),
+        flag="NORMAL",
+        performed_by=lab_user,
+    )
+    order.status = "RESULTED"
+    order.save(update_fields=["status"])
+
+    client.force_login(clinician)
+    resp = client.get(reverse("encounters:detail", args=[order.encounter.pk]))
+
+    assert resp.status_code == 200
+    assert b"13.5" in resp.content
+    assert b"Normal" in resp.content

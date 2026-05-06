@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
@@ -35,11 +36,12 @@ def _audit(request, action, obj, **metadata):
 
 
 @requires_role("LAB", "CLINICIAN", "ADMIN")
+@never_cache
 def lab_queue(request):
     """Lab queue — tests awaiting processing (not yet resulted)."""
     pending = LabOrder.objects.filter(
         status__in=["ORDERED", "COLLECTED"]
-    ).select_related("encounter__patient", "test").order_by("ordered_at")
+    ).select_related("encounter__patient", "test", "ordered_by").order_by("ordered_at")
     return render(request, "lab/queue.html", {
         "page_title": _("Lab Queue"),
         "orders": pending,
@@ -47,11 +49,12 @@ def lab_queue(request):
 
 
 @requires_role("LAB", "CLINICIAN", "ADMIN")
+@never_cache
 def lab_results(request):
     """Processed lab tests — results entered (RESULTED) and clinician-reviewed (REVIEWED)."""
     orders = LabOrder.objects.filter(
         status__in=["RESULTED", "REVIEWED"]
-    ).select_related("encounter__patient", "test", "result").order_by("-resulted_at", "-ordered_at")
+    ).select_related("encounter__patient", "test", "result", "result__performed_by").order_by("-resulted_at", "-ordered_at")
     return render(request, "lab/results.html", {
         "page_title": _("Lab Results"),
         "orders": orders,
@@ -59,10 +62,11 @@ def lab_results(request):
 
 
 @requires_role("LAB", "CLINICIAN", "ADMIN")
+@never_cache
 def lab_order_detail(request, pk):
     """Lab order detail / result entry."""
     order = get_object_or_404(
-        LabOrder.objects.select_related("test", "encounter__patient"), pk=pk
+        LabOrder.objects.select_related("test", "encounter__patient", "ordered_by"), pk=pk
     )
     result = getattr(order, "result", None)
     flag = _compute_flag(order, result.value_numeric) if result and result.value_numeric is not None else None
@@ -86,7 +90,7 @@ def lab_collect(request, pk):
     order.collected_at = timezone.now()
     order.updated_by = request.user
     order.save(update_fields=["status", "collected_at", "updated_by", "updated_at"])
-    messages.success(request, _("Marked as collected."))
+    messages.success(request, _("Sample collected. You can now enter results."))
     return redirect("lab:order_detail", pk=pk)
 
 
@@ -133,7 +137,7 @@ def lab_result_enter(request, pk):
         order.resulted_at = timezone.now()
         order.updated_by = request.user
         order.save(update_fields=["status", "resulted_at", "updated_by", "updated_at"])
-    messages.success(request, _("Result saved."))
+    messages.success(request, _("Result saved and visible to the clinician."))
     return redirect("lab:order_detail", pk=pk)
 
 
@@ -234,6 +238,7 @@ def lab_order_print(request, pk):
 
 
 @requires_role("LAB", "ADMIN")
+@never_cache
 def lab_test_catalogue(request):
     """List the lab test catalogue. LAB techs can add and edit entries."""
     tests = LabTest.objects.order_by("-is_active", "name")
@@ -244,6 +249,7 @@ def lab_test_catalogue(request):
 
 
 @requires_role("LAB", "ADMIN")
+@never_cache
 def lab_test_create(request):
     """Add a new lab test to the catalogue."""
     if request.method == "POST":
@@ -268,6 +274,7 @@ def lab_test_create(request):
 
 
 @requires_role("LAB", "ADMIN")
+@never_cache
 def lab_test_edit(request, pk):
     """Edit an existing lab test in the catalogue."""
     test = get_object_or_404(LabTest, pk=pk)
