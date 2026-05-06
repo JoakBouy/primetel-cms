@@ -12,7 +12,14 @@ from django.views.generic import RedirectView, TemplateView
 
 def healthz(request):
     """Health check endpoint for Render."""
-    return JsonResponse({"status": "ok"})
+    from django.db import connection
+    try:
+        # Perform a simple query to ensure the database is reachable
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        return JsonResponse({"status": "ok", "database": "connected"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "database": "disconnected", "details": str(e)}, status=503)
 
 
 urlpatterns = [
