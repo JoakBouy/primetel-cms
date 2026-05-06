@@ -39,10 +39,23 @@ def _ensure_editable(encounter):
 
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_new(request):
-    """Start a new encounter for a patient."""
+    """Start a new encounter for a patient — or resume an open draft."""
     patient_pk = request.GET.get("patient")
     patient = get_object_or_404(Patient, pk=patient_pk)
+    # If the patient already has an open (DRAFT) general/follow-up encounter, resume it
+    # instead of silently creating a duplicate. This is what makes "Anza Consult" idempotent.
+    existing = (
+        Encounter.objects.for_user(request.user)
+        .filter(patient=patient, status="DRAFT")
+        .exclude(encounter_type="MENTAL_HEALTH")
+        .order_by("-started_at")
+        .first()
+    )
+    if existing and request.method != "POST":
+        return redirect("encounters:detail", pk=existing.pk)
     if request.method == "POST":
+        if existing:
+            return redirect("encounters:detail", pk=existing.pk)
         encounter = Encounter.objects.create(
             patient=patient,
             clinician=request.user,
@@ -66,10 +79,20 @@ def encounter_new(request):
 
 @requires_role("COUNSELLOR", "ADMIN")
 def encounter_new_mh(request):
-    """Start a new mental health encounter."""
+    """Start a new mental health encounter — or resume an open draft."""
     patient_pk = request.GET.get("patient")
     patient = get_object_or_404(Patient, pk=patient_pk)
+    existing = (
+        Encounter.mental_health.for_user(request.user)
+        .filter(patient=patient, status="DRAFT")
+        .order_by("-started_at")
+        .first()
+    )
+    if existing and request.method != "POST":
+        return redirect("encounters:detail", pk=existing.pk)
     if request.method == "POST":
+        if existing:
+            return redirect("encounters:detail", pk=existing.pk)
         encounter = Encounter.objects.create(
             patient=patient, clinician=request.user,
             encounter_type="MENTAL_HEALTH",

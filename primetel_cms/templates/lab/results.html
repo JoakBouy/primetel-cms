@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Lab Results" %}{% endblock %}
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Lab Results" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{{ orders|length }} {% trans "processed tests" %}</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'lab:queue' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-queue">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% trans "Pending queue" %}
+        </a>
+        {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+        <a href="{% url 'lab:catalogue' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-catalogue">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14-7H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+            {% trans "Manage tests" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sub-nav -->
+<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 max-w-md">
+    <a href="{% url 'lab:queue' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Pending" %}</a>
+    <a href="{% url 'lab:results' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium bg-white text-slate-800 shadow-sm">{% trans "Results" %}</a>
+</div>
+{% endblock %}
+{% block content %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+    {% if orders %}
+    <table class="data-table">
+        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Result" %}</th><th>{% trans "Flag" %}</th><th>{% trans "Status" %}</th><th>{% trans "Resulted" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td class="font-medium text-slate-800">{{ order.encounter.patient.full_name }}</td>
+                <td class="text-sm">{{ order.test.code }} — {{ order.test.name }}</td>
+                <td class="text-sm font-mono">
+                    {% if order.result %}
+                        {% if order.result.value_numeric is not None %}{{ order.result.value_numeric }}{% if order.test.reference_unit %} {{ order.test.reference_unit }}{% endif %}{% elif order.result.value_text %}{{ order.result.value_text|truncatechars:40 }}{% else %}—{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if order.result and order.result.flag %}
+                        <span class="badge badge-{{ order.result.flag|lower }} text-[10px]">{{ order.result.get_flag_display }}</span>
+                    {% else %}
+                        <span class="text-xs text-slate-400">—</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge badge-{{ order.status|lower }}">{{ order.get_status_display }}</span></td>
+                <td class="text-xs text-slate-400">{% if order.resulted_at %}{{ order.resulted_at|timesince }} {% trans "ago" %}{% else %}—{% endif %}</td>
+                <td class="text-right"><a href="{% url 'lab:order_detail' order.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">{% trans "View" %}</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-center">
+        <div class="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3"><svg class="w-7 h-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg></div>
+        <h3 class="text-sm font-semibold text-slate-700 mb-1">{% trans "No results yet" %}</h3>
+        <p class="text-xs text-slate-400">{% trans "Processed tests will appear here once results are entered." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

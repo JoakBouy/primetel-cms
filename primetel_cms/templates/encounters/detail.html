@@ -60,7 +60,7 @@
     <div class="xl:col-span-2 space-y-5">
         <form id="soap-form"
               hx-post="{% url 'encounters:save_draft' encounter.pk %}"
-              hx-trigger="keyup changed delay:2s"
+              hx-trigger="keyup changed delay:1500ms from:textarea, change from:textarea, blur from:textarea, soap-flush"
               hx-target="#save-indicator"
               hx-swap="innerHTML">
             {% csrf_token %}
@@ -104,6 +104,37 @@
                 </div>
             </div>
         </form>
+        {% if encounter.status != "FINALISED" %}
+        <script>
+        (function () {
+            var form = document.getElementById("soap-form");
+            if (!form) return;
+            var url = "{% url 'encounters:save_draft' encounter.pk %}";
+            var csrf = (form.querySelector('[name=csrfmiddlewaretoken]') || {}).value || "";
+            var dirty = false;
+            form.addEventListener("input", function () { dirty = true; });
+            form.addEventListener("htmx:afterRequest", function () { dirty = false; });
+            // Flush draft synchronously if the user navigates away or hides the tab.
+            function flush() {
+                if (!dirty || !navigator.sendBeacon) return;
+                var data = new FormData(form);
+                try { navigator.sendBeacon(url, data); dirty = false; } catch (e) {}
+            }
+            window.addEventListener("pagehide", flush);
+            window.addEventListener("beforeunload", flush);
+            document.addEventListener("visibilitychange", function () {
+                if (document.visibilityState === "hidden") flush();
+            });
+            // Also intercept clicks on internal links so we save before navigating.
+            document.addEventListener("click", function (e) {
+                var a = e.target.closest("a[href]");
+                if (!a || !dirty) return;
+                if (a.target === "_blank" || a.hasAttribute("download")) return;
+                flush();
+            }, true);
+        })();
+        </script>
+        {% endif %}
     </div>
 
     <!-- ═══ RIGHT: Side Panels (1/3) ═══ -->

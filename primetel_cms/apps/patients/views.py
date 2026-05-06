@@ -63,6 +63,11 @@ def patient_register(request):
 @login_required
 def patient_chart(request, pk):
     """Patient chart — tabbed view with timeline, encounters, prescriptions, labs, invoices."""
+    from apps.encounters.models import Encounter
+    from apps.pharmacy.models import Prescription
+    from apps.lab.models import LabOrder
+    from apps.billing.models import Invoice
+
     patient = get_object_or_404(Patient, pk=pk)
 
     # The middleware handles AuditLog READ entry automatically.
@@ -77,11 +82,38 @@ def patient_chart(request, pk):
         ("documents",     _("Documents"),     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>'),
     ]
 
+    encounters = (
+        Encounter.objects.for_user(request.user)
+        .filter(patient=patient)
+        .select_related("clinician")
+        .order_by("-started_at")
+    )
+    open_draft = encounters.filter(status="DRAFT").first()
+    prescriptions = (
+        Prescription.objects.filter(encounter__patient=patient)
+        .select_related("drug", "encounter", "prescribed_by")
+        .order_by("-prescribed_at")
+    )
+    lab_orders = (
+        LabOrder.objects.filter(encounter__patient=patient)
+        .select_related("test", "encounter")
+        .order_by("-ordered_at")
+    )
+    invoices = (
+        Invoice.objects.filter(patient=patient)
+        .order_by("-issued_at")
+    )
+
     return render(request, "patients/chart.html", {
         "page_title": f"{patient.full_name} — {_('Chart')}",
         "patient": patient,
         "active_tab": active_tab,
         "tabs": TABS,
+        "encounters": encounters,
+        "open_draft": open_draft,
+        "prescriptions": prescriptions,
+        "lab_orders": lab_orders,
+        "invoices": invoices,
     })
 
 

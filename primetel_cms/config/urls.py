@@ -23,8 +23,9 @@ def healthz(request):
 
 
 urlpatterns = [
-    # Health check — no auth required
+    # Health check — no auth required (supports both /healthz/ and /health/)
     path("healthz/", healthz, name="healthz"),
+    path("health/", healthz, name="health"),
     # Language switcher
     path("i18n/", include("django.conf.urls.i18n")),
     # Service worker

@@ -149,12 +149,46 @@
 {% endblock %}
 
 {% block content %}
+{% if open_draft %}
+<div class="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3" id="open-draft-banner">
+    <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-warning-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+        </div>
+        <div>
+            <p class="text-sm font-semibold text-warning-700">{% trans "Open draft encounter" %}</p>
+            <p class="text-xs text-warning-700/80">{{ open_draft.get_encounter_type_display }} · {% trans "started" %} {{ open_draft.started_at|timesince }} {% trans "ago" %}{% if open_draft.clinician %} · {{ open_draft.clinician.full_name|default:open_draft.clinician.username }}{% endif %}</p>
+        </div>
+    </div>
+    <a href="{% url 'encounters:detail' open_draft.pk %}" class="px-4 py-2 bg-warning-500 hover:bg-warning-600 text-white text-sm font-medium rounded-xl transition-colors" id="btn-resume-draft">
+        {% trans "Resume" %}
+    </a>
+</div>
+{% endif %}
+
 <div class="animate-fade-in">
     {% if active_tab == "timeline" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-timeline">
         <div class="flex items-center justify-between mb-6">
             <h3 class="text-sm font-semibold text-slate-800">{% trans "Clinical Timeline" %}</h3>
         </div>
+        {% if encounters %}
+        <ol class="relative border-l border-slate-200 ml-3 space-y-5">
+            {% for enc in encounters %}
+            <li class="ml-4">
+                <span class="absolute -left-1.5 w-3 h-3 rounded-full {% if enc.status == 'DRAFT' %}bg-warning-400{% elif enc.status == 'FINALISED' %}bg-success-500{% else %}bg-primary-400{% endif %}"></span>
+                <a href="{% url 'encounters:detail' enc.pk %}" class="block p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-sm font-medium text-slate-800">{{ enc.get_encounter_type_display }}</p>
+                        <span class="badge badge-{{ enc.status|lower }} text-[10px]">{{ enc.get_status_display }}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ enc.started_at|date:"d M Y H:i" }}{% if enc.clinician %} · {{ enc.clinician.full_name|default:enc.clinician.username }}{% endif %}</p>
+                    {% if enc.chief_complaint %}<p class="text-xs text-slate-600 mt-1 line-clamp-2">{{ enc.chief_complaint }}</p>{% endif %}
+                </a>
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
         <div class="flex flex-col items-center py-12 text-center">
             <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-3">
                 <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,22 +203,79 @@
                 {% trans "Start First Consultation" %}
             </a>
         </div>
+        {% endif %}
     </div>
     {% elif active_tab == "encounters" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-encounters">
+        {% if encounters %}
+        <div class="space-y-2">
+            {% for enc in encounters %}
+            <a href="{% url 'encounters:detail' enc.pk %}" class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ enc.get_encounter_type_display }}{% if enc.chief_complaint %} — {{ enc.chief_complaint|truncatechars:60 }}{% endif %}</p>
+                    <p class="text-xs text-slate-500">{{ enc.started_at|date:"d M Y H:i" }}{% if enc.clinician %} · {{ enc.clinician.full_name|default:enc.clinician.username }}{% endif %}</p>
+                </div>
+                <span class="badge badge-{{ enc.status|lower }} text-[10px] shrink-0">{{ enc.get_status_display }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
         <p class="text-sm text-slate-500">{% trans "No encounters recorded." %}</p>
+        {% endif %}
     </div>
     {% elif active_tab == "prescriptions" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-prescriptions">
+        {% if prescriptions %}
+        <div class="space-y-2">
+            {% for rx in prescriptions %}
+            <div class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ rx.drug }}</p>
+                    <p class="text-xs text-slate-500">{{ rx.dose }} — {{ rx.frequency }} × {{ rx.duration_days }}d · {{ rx.prescribed_at|date:"d M Y" }}</p>
+                </div>
+                <span class="badge badge-{{ rx.status|lower }} text-[10px] shrink-0">{{ rx.get_status_display }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
         <p class="text-sm text-slate-500">{% trans "No prescriptions recorded." %}</p>
+        {% endif %}
     </div>
     {% elif active_tab == "labs" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-labs">
+        {% if lab_orders %}
+        <div class="space-y-2">
+            {% for order in lab_orders %}
+            <a href="{% url 'lab:order_detail' order.pk %}" class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ order.test.code }} — {{ order.test.name }}</p>
+                    <p class="text-xs text-slate-500">{{ order.ordered_at|date:"d M Y H:i" }}</p>
+                </div>
+                <span class="badge badge-{{ order.status|lower }} text-[10px] shrink-0">{{ order.get_status_display }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
         <p class="text-sm text-slate-500">{% trans "No lab orders recorded." %}</p>
+        {% endif %}
     </div>
     {% elif active_tab == "invoices" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-invoices">
+        {% if invoices %}
+        <div class="space-y-2">
+            {% for inv in invoices %}
+            <a href="{% url 'billing:invoice_detail' inv.pk %}" class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ inv.invoice_number }}</p>
+                    <p class="text-xs text-slate-500">{{ inv.issued_at|date:"d M Y" }} · {% trans "Total" %} {{ inv.total_tzs|floatformat:0 }} TZS</p>
+                </div>
+                <span class="badge badge-{{ inv.status|lower }} text-[10px] shrink-0">{{ inv.get_status_display }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
         <p class="text-sm text-slate-500">{% trans "No invoices recorded." %}</p>
+        {% endif %}
     </div>
     {% elif active_tab == "documents" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-documents">

@@ -19,13 +19,25 @@ from .models import LabOrder, LabResult, LabTest
 
 @requires_role("LAB", "CLINICIAN", "ADMIN")
 def lab_queue(request):
-    """Lab queue — tests awaiting processing."""
+    """Lab queue — tests awaiting processing (not yet resulted)."""
     pending = LabOrder.objects.filter(
-        status__in=["ORDERED", "COLLECTED", "RESULTED"]
+        status__in=["ORDERED", "COLLECTED"]
     ).select_related("encounter__patient", "test").order_by("ordered_at")
     return render(request, "lab/queue.html", {
         "page_title": _("Lab Queue"),
         "orders": pending,
+    })
+
+
+@requires_role("LAB", "CLINICIAN", "ADMIN")
+def lab_results(request):
+    """Processed lab tests — results entered (RESULTED) and clinician-reviewed (REVIEWED)."""
+    orders = LabOrder.objects.filter(
+        status__in=["RESULTED", "REVIEWED"]
+    ).select_related("encounter__patient", "test", "result").order_by("-resulted_at", "-ordered_at")
+    return render(request, "lab/results.html", {
+        "page_title": _("Lab Results"),
+        "orders": orders,
     })
 
 

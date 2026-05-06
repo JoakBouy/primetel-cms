@@ -7,12 +7,24 @@
         <h1 class="text-2xl font-bold text-slate-800">{% trans "Lab Queue" %}</h1>
         <p class="text-sm text-slate-500 mt-0.5">{{ orders|length }} {% trans "pending orders" %}</p>
     </div>
-    {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
-    <a href="{% url 'lab:catalogue' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-catalogue">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14-7H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
-        {% trans "Manage tests" %}
-    </a>
-    {% endif %}
+    <div class="flex gap-2">
+        <a href="{% url 'lab:results' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-results">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% trans "Results" %}
+        </a>
+        {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+        <a href="{% url 'lab:catalogue' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-catalogue">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14-7H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2z"/></svg>
+            {% trans "Manage tests" %}
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Sub-nav -->
+<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 max-w-md">
+    <a href="{% url 'lab:queue' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium bg-white text-slate-800 shadow-sm">{% trans "Pending" %}</a>
+    <a href="{% url 'lab:results' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Results" %}</a>
 </div>
 {% endblock %}
 {% block content %}
