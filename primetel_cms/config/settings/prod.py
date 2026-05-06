@@ -45,6 +45,7 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript (HTMX) to read the CSRF cookie
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Static files — WhiteNoise with compression
@@ -54,7 +55,7 @@ STORAGES = {
     },
 }
 
-# Render external hostname
+# Render external hostname — must be added BEFORE CSRF_TRUSTED_ORIGINS is computed
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -64,6 +65,7 @@ CORS_ALLOWED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and 
 
 # CSRF trusted origins — required by Django 4+ for HTTPS form POSTs behind
 # a proxy. Without this, every POST returns "CSRF verification failed".
+# Computed AFTER RENDER_EXTERNAL_HOSTNAME so it includes all hosts.
 CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host and host != "*"]
 
 # Logging

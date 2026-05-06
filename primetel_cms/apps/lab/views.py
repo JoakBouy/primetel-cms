@@ -223,6 +223,20 @@ def lab_test_edit(request, pk):
     })
 
 
+@require_POST
+@requires_role("LAB", "ADMIN")
+def lab_test_toggle_active(request, pk):
+    """Toggle a lab test's active status (soft delete / restore)."""
+    test = get_object_or_404(LabTest, pk=pk)
+    test.is_active = not test.is_active
+    test.save(update_fields=["is_active"])
+    if test.is_active:
+        messages.success(request, _("Lab test '%(n)s' reactivated.") % {"n": test.name})
+    else:
+        messages.success(request, _("Lab test '%(n)s' deactivated.") % {"n": test.name})
+    return redirect("lab:catalogue")
+
+
 def _populate_test(test: LabTest, data) -> LabTest:
     """Apply form data to a LabTest instance, parsing decimals carefully."""
     test.code = (data.get("code") or "").strip()

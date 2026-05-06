@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Primetel Clinical Management System — Monduli Clinic, Arusha, Tanzania">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}{% trans "Dashboard" %}{% endblock %} — {{ SITE_NAME }}</title>
 
     <!-- Tailwind CSS 3.4 (vendored locally — clinic connectivity may be intermittent) -->
@@ -193,7 +194,8 @@
 
 <body class="h-full bg-gradient-to-br from-slate-50 via-white to-red-50/20 text-slate-800 antialiased"
       x-data="{ sidebarOpen: window.innerWidth >= 1024, userMenuOpen: false, langMenuOpen: false }"
-      @keydown.escape.window="sidebarOpen = window.innerWidth >= 1024; userMenuOpen = false; langMenuOpen = false">
+      @keydown.escape.window="sidebarOpen = window.innerWidth >= 1024; userMenuOpen = false; langMenuOpen = false"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!--  TOP NAVIGATION BAR                                 -->
@@ -561,9 +563,10 @@
 
         // ─── HTMX Configuration ───────────────────────
         document.body.addEventListener('htmx:configRequest', function(event) {
-            // Include CSRF token in all HTMX requests
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-                || document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+            // Include CSRF token in all HTMX requests — three fallback layers
+            const csrfToken = (document.cookie.match(/(?:^|;\s*)csrftoken=([^;]*)/) || [])[1]
+                || document.querySelector('meta[name="csrf-token"]')?.content
+                || document.querySelector('[name=csrfmiddlewaretoken]')?.value;
             if (csrfToken) {
                 event.detail.headers['X-CSRFToken'] = csrfToken;
             }

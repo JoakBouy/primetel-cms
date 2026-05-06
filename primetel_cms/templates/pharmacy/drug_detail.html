@@ -1,15 +1,88 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block title %}{{ drug.generic_name }}{% endblock %}
+
 {% block page_header %}
-<div class="mb-6"><div class="flex items-center gap-3"><a href="{% url 'pharmacy:stock' %}" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg></a><div><h1 class="text-2xl font-bold text-slate-800">{{ drug.generic_name }} {{ drug.strength }}</h1><p class="text-sm text-slate-500">{{ drug.get_form_display }} · {% trans "Total stock" %}: {{ drug.total_stock }}</p></div></div></div>
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div class="flex items-center gap-3">
+        <a href="{% url 'pharmacy:stock' %}" class="text-slate-400 hover:text-slate-600 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{{ drug.generic_name }} {{ drug.strength }}</h1>
+            <p class="text-sm text-slate-500">{{ drug.get_form_display }} · {% trans "Total stock" %}: <span class="font-semibold">{{ drug.total_stock }}</span></p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'pharmacy:drug_edit' drug.pk %}" class="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all" id="btn-edit-drug">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            {% trans "Edit Drug" %}
+        </a>
+        <a href="{% url 'pharmacy:stock_receive' drug.pk %}" class="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all" id="btn-receive-stock">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            {% trans "Receive Stock" %}
+        </a>
+    </div>
+</div>
 {% endblock %}
+
 {% block content %}
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
     {% if batches %}
-    <table class="data-table"><thead><tr><th>{% trans "Batch" %}</th><th>{% trans "Expiry" %}</th><th>{% trans "Qty" %}</th><th>{% trans "Status" %}</th></tr></thead>
-    <tbody>{% for b in batches %}<tr><td class="font-mono text-sm">{{ b.batch_number }}</td><td class="text-sm">{{ b.expiry_date|date:"d/m/Y" }}</td><td class="font-semibold">{{ b.quantity_on_hand }}</td><td>{% if b.is_expired %}<span class="badge badge-cancelled">{% trans "Expired" %}</span>{% elif b.is_near_expiry %}<span class="badge badge-checked-in">{% trans "Near Expiry" %}</span>{% else %}<span class="badge badge-completed">{% trans "OK" %}</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{% trans "Batch" %}</th>
+                <th>{% trans "Expiry" %}</th>
+                <th>{% trans "Qty on Hand" %}</th>
+                <th>{% trans "Status" %}</th>
+                <th>{% trans "Adjust Stock" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in batches %}
+            <tr>
+                <td class="font-mono text-sm">{{ b.batch_number }}</td>
+                <td class="text-sm">{{ b.expiry_date|date:"d/m/Y" }}</td>
+                <td class="font-semibold">{{ b.quantity_on_hand }}</td>
+                <td>
+                    {% if b.is_expired %}<span class="badge badge-cancelled">{% trans "Expired" %}</span>
+                    {% elif b.is_near_expiry %}<span class="badge badge-checked-in">{% trans "Near Expiry" %}</span>
+                    {% else %}<span class="badge badge-completed">{% trans "OK" %}</span>{% endif %}
+                </td>
+                <td>
+                    <div x-data="{ showAdjust: false }">
+                        <button @click="showAdjust = !showAdjust"
+                                class="text-xs text-primary-600 hover:underline"
+                                id="btn-adjust-{{ b.pk }}">
+                            {% trans "Adjust" %}
+                        </button>
+                        <form x-show="showAdjust" x-transition
+                              method="post" action="{% url 'pharmacy:stock_adjust' b.pk %}"
+                              class="mt-2 flex flex-col gap-2">
+                            {% csrf_token %}
+                            <input type="number" name="new_quantity" value="{{ b.quantity_on_hand }}"
+                                   min="0" class="form-input text-xs py-1.5 w-24"
+                                   placeholder="{% trans 'New qty' %}" required>
+                            <input type="text" name="reason" class="form-input text-xs py-1.5"
+                                   placeholder="{% trans 'Reason (required)' %}" required>
+                            <button type="submit"
+                                    class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 transition-colors"
+                                    onclick="return confirm('{% trans "Adjust stock quantity for this batch?" %}')">
+                                {% trans "Save" %}
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-    {% else %}<div class="p-12 text-center"><p class="text-sm text-slate-500">{% trans "No stock items" %}</p></div>{% endif %}
+    {% else %}
+    <div class="p-12 text-center">
+        <p class="text-sm text-slate-500 mb-4">{% trans "No stock items for this drug." %}</p>
+        <a href="{% url 'pharmacy:stock_receive' drug.pk %}" class="px-4 py-2 bg-primary-600 text-white text-sm rounded-xl">{% trans "Receive first batch" %}</a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

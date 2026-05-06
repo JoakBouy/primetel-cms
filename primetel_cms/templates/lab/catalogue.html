@@ -58,7 +58,18 @@
                     {% endif %}
                 </td>
                 <td class="text-right">
-                    <a href="{% url 'lab:test_edit' t.pk %}" class="text-xs text-primary-600 hover:underline" id="test-edit-{{ t.pk }}">{% trans "Edit" %}</a>
+                    <div class="flex items-center justify-end gap-2">
+                        <a href="{% url 'lab:test_edit' t.pk %}" class="text-xs text-primary-600 hover:underline" id="test-edit-{{ t.pk }}">{% trans "Edit" %}</a>
+                        <form method="post" action="{% url 'lab:test_toggle' t.pk %}" class="inline">
+                            {% csrf_token %}
+                            {% if t.is_active %}
+                            <button type="submit" class="text-xs text-danger-500 hover:underline" id="test-deactivate-{{ t.pk }}"
+                                    onclick="return confirm('{% trans "Deactivate this test? It will no longer appear in new orders." %}')">{% trans "Deactivate" %}</button>
+                            {% else %}
+                            <button type="submit" class="text-xs text-success-600 hover:underline" id="test-activate-{{ t.pk }}">{% trans "Reactivate" %}</button>
+                            {% endif %}
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}

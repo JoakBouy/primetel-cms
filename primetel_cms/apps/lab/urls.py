@@ -17,4 +17,5 @@ urlpatterns = [
     path("catalogue/", views.lab_test_catalogue, name="catalogue"),
     path("catalogue/new/", views.lab_test_create, name="test_create"),
     path("catalogue/<uuid:pk>/edit/", views.lab_test_edit, name="test_edit"),
+    path("catalogue/<uuid:pk>/toggle/", views.lab_test_toggle_active, name="test_toggle"),
 ]

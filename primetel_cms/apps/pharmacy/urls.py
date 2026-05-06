@@ -16,5 +16,7 @@ urlpatterns = [
     path("catalogue/", views.drug_catalogue, name="catalogue"),
     path("catalogue/new/", views.drug_create, name="drug_create"),
     path("drugs/<uuid:pk>/edit/", views.drug_edit, name="drug_edit"),
+    path("drugs/<uuid:pk>/toggle/", views.drug_toggle_active, name="drug_toggle"),
     path("drugs/<uuid:drug_pk>/receive/", views.stock_receive, name="stock_receive"),
+    path("stock/<uuid:item_pk>/adjust/", views.stock_adjust, name="stock_adjust"),
 ]

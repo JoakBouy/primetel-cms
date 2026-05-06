@@ -215,6 +215,7 @@ SIMPLE_HISTORY_HISTORY_ID_USE_UUID = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
+CSRF_FAILURE_VIEW = "apps.core.views.csrf_failure"
 
 # ──────────────────────────────────────────────
 # Default primary key field type

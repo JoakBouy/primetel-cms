@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
 from apps.core.pdf import render_pdf
@@ -317,3 +318,49 @@ def stock_receive(request, drug_pk):
         "page_title": _("Receive stock"),
         "drug": drug,
     })
+
+
+# ─── Drug toggle-active (soft delete / restore) ──────────────────
+
+@require_POST
+@requires_role("PHARMACY", "ADMIN")
+def drug_toggle_active(request, pk):
+    """Toggle a drug's active status (soft delete / restore)."""
+    drug = get_object_or_404(Drug, pk=pk)
+    drug.is_active = not drug.is_active
+    drug.save(update_fields=["is_active"])
+    if drug.is_active:
+        messages.success(request, _("Drug '%(n)s' reactivated.") % {"n": drug.generic_name})
+    else:
+        messages.success(request, _("Drug '%(n)s' deactivated.") % {"n": drug.generic_name})
+    return redirect("pharmacy:catalogue")
+
+
+# ─── Stock adjustment ─────────────────────────────────────────────
+
+@require_POST
+@requires_role("PHARMACY", "ADMIN")
+def stock_adjust(request, item_pk):
+    """Adjust stock quantity on an existing batch (e.g. breakage, count correction)."""
+    item = get_object_or_404(StockItem.objects.select_related("drug"), pk=item_pk)
+    try:
+        new_qty = int(request.POST.get("new_quantity") or 0)
+    except (TypeError, ValueError):
+        new_qty = 0
+    if new_qty < 0:
+        messages.error(request, _("Stock quantity cannot be negative."))
+        return redirect("pharmacy:drug_detail", pk=item.drug.pk)
+    reason_text = (request.POST.get("reason") or "").strip()
+    if not reason_text:
+        messages.error(request, _("A reason is required for stock adjustments."))
+        return redirect("pharmacy:drug_detail", pk=item.drug.pk)
+
+    diff = new_qty - item.quantity_on_hand
+    item.quantity_on_hand = new_qty
+    item.save(update_fields=["quantity_on_hand"])
+    StockMovement.objects.create(
+        stock_item=item, movement_type="ADJUST", quantity=diff,
+        performed_by=request.user,
+    )
+    messages.success(request, _("Stock adjusted by %(d)s units. Reason: %(r)s") % {"d": diff, "r": reason_text})
+    return redirect("pharmacy:drug_detail", pk=item.drug.pk)
