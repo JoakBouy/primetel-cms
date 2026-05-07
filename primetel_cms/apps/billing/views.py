@@ -208,7 +208,7 @@ def invoice_remove_line(request, pk, line_pk):
 
 
 @require_POST
-@requires_role("FINANCE", "ADMIN")
+@requires_role("FINANCE", "RECEPTIONIST", "ADMIN")
 def payment_void(request, pk, payment_pk):
     """Void a recorded payment by creating a reversing entry. Original stays in history."""
     invoice = get_object_or_404(Invoice, pk=pk)

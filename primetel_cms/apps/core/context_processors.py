@@ -13,7 +13,9 @@ NAV_BY_ROLE = {
         "patients", "appointments", "encounters",
         "pharmacy", "lab", "billing", "reports",
     },
-    "RECEPTIONIST": {"patients", "appointments", "billing"},
+    # Receptionist also covers finance duties at this clinic — they take
+    # payments, issue invoices, and run financial reports themselves.
+    "RECEPTIONIST": {"patients", "appointments", "billing", "reports"},
     "NURSE": {"patients", "appointments", "encounters"},
     "CLINICIAN": {"patients", "appointments", "encounters", "pharmacy", "lab", "reports"},
     "COUNSELLOR": {"patients", "appointments", "encounters", "reports"},

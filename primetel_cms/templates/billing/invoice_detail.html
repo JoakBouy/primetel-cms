@@ -128,7 +128,7 @@
                         <span class="font-mono text-sm font-semibold {% if p.amount_tzs < 0 %}text-danger-600{% else %}text-success-600{% endif %} shrink-0">{{ p.amount_tzs|floatformat:0 }}</span>
                     </div>
                     {% if p.amount_tzs > 0 %}
-                    {% if user.is_superuser or user.role.code == "FINANCE" or user.role.code == "ADMIN" %}
+                    {% if user.is_superuser or user.role.code == "FINANCE" or user.role.code == "RECEPTIONIST" or user.role.code == "ADMIN" %}
                     <div class="mt-1.5">
                         <button type="button" @click="showVoid = !showVoid" class="text-[10px] text-danger-600 hover:underline" id="payment-void-toggle-{{ p.pk }}">{% trans "Void" %}</button>
                     </div>

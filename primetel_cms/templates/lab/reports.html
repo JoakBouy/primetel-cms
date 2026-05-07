@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Lab Reports" %}{% endblock %}
+{% block extra_head_js %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Lab Reports" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{{ period_label }} · {{ since|date:"d M Y" }} → {% now "d M Y" %}</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'lab:queue' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all">
+            {% trans "← Back to queue" %}
+        </a>
+    </div>
+</div>
+
+<!-- Sub-nav -->
+<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 max-w-xl">
+    <a href="{% url 'lab:queue' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Pending" %}</a>
+    <a href="{% url 'lab:results' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Results" %}</a>
+    <a href="{% url 'lab:reports' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium bg-white text-slate-800 shadow-sm">{% trans "Reports" %}</a>
+</div>
+
+<!-- Period selector -->
+<div class="flex flex-wrap items-center gap-2 mb-6">
+    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide mr-1">{% trans "Period" %}:</span>
+    {% for key, label, days in periods %}
+    <a href="?period={{ key }}"
+       class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors {% if selected_period == key %}bg-primary-600 text-white shadow-sm{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}"
+       id="period-{{ key }}">{{ label }}</a>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Volume cards -->
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card">
+        <p class="text-3xl font-bold text-slate-800">{{ volume.ORDERED|add:volume.COLLECTED }}</p>
+        <p class="text-xs text-slate-500 mt-1">{% trans "Awaiting result" %}</p>
+        <p class="text-[10px] text-slate-400 mt-0.5">{{ volume.ORDERED }} ord · {{ volume.COLLECTED }} coll</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card">
+        <p class="text-3xl font-bold text-warning-600">{{ volume.RESULTED }}</p>
+        <p class="text-xs text-slate-500 mt-1">{% trans "Resulted (unreviewed)" %}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card">
+        <p class="text-3xl font-bold text-success-600">{{ volume.REVIEWED }}</p>
+        <p class="text-xs text-slate-500 mt-1">{% trans "Reviewed" %}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card">
+        <p class="text-3xl font-bold text-slate-400">{{ volume.CANCELLED }}</p>
+        <p class="text-xs text-slate-500 mt-1">{% trans "Cancelled" %}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-primary-100 p-4 shadow-card bg-primary-50/30">
+        <p class="text-3xl font-bold text-primary-700">{{ volume_total }}</p>
+        <p class="text-xs text-slate-600 mt-1 font-semibold">{% trans "Total orders" %}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- TAT card -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card">
+        <h3 class="text-sm font-semibold text-slate-800 mb-1">{% trans "Median turnaround time" %}</h3>
+        <p class="text-xs text-slate-400 mb-4">{% trans "Order placed → result entered" %}</p>
+        {% if tat_median_hours is not None %}
+        <p class="text-4xl font-bold text-slate-800">{{ tat_median_hours }}<span class="text-lg text-slate-400 font-medium ml-1">h</span></p>
+        <p class="text-xs text-slate-500 mt-2">{% blocktrans count counter=tat_count %}across {{ counter }} resulted order{% plural %}across {{ counter }} resulted orders{% endblocktrans %}</p>
+        {% else %}
+        <p class="text-sm text-slate-400 py-4">{% trans "No resulted orders in this window." %}</p>
+        {% endif %}
+    </div>
+
+    <!-- Flag distribution -->
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-card">
+        <h3 class="text-sm font-semibold text-slate-800 mb-1">{% trans "Result flags" %}</h3>
+        <p class="text-xs text-slate-400 mb-4">{% trans "Distribution of results entered in this window" %}</p>
+        {% if flags_total %}
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div class="p-3 bg-success-50 rounded-xl">
+                <p class="text-2xl font-bold text-success-700">{{ flags.NORMAL }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-success-700/80 mt-1">{% trans "Normal" %}</p>
+            </div>
+            <div class="p-3 bg-warning-50 rounded-xl">
+                <p class="text-2xl font-bold text-warning-700">{{ flags.LOW }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-warning-700/80 mt-1">{% trans "Low" %}</p>
+            </div>
+            <div class="p-3 bg-warning-50 rounded-xl">
+                <p class="text-2xl font-bold text-warning-700">{{ flags.HIGH }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-warning-700/80 mt-1">{% trans "High" %}</p>
+            </div>
+            <div class="p-3 bg-danger-50 rounded-xl">
+                <p class="text-2xl font-bold text-danger-700">{{ flags.CRITICAL }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-danger-700/80 mt-1">{% trans "Critical" %}</p>
+            </div>
+            <div class="p-3 bg-slate-100 rounded-xl">
+                <p class="text-2xl font-bold text-slate-600">{{ flags.UNFLAGGED }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 mt-1">{% trans "Unflagged" %}</p>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-400 py-4 text-center">{% trans "No results entered in this window." %}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Top tests -->
+<div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card">
+    <div class="flex items-baseline justify-between mb-4">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-800">{% trans "Top tests requested" %}</h3>
+            <p class="text-xs text-slate-400 mt-0.5">{% trans "By order volume in this window" %}</p>
+        </div>
+    </div>
+    {% if top_tests %}
+    <div class="space-y-3">
+        {% for row in top_tests %}
+        <div>
+            <div class="flex items-baseline justify-between gap-2 mb-1">
+                <p class="text-sm font-medium text-slate-700 truncate">
+                    <span class="font-mono text-[10px] text-primary-600 mr-1">{{ row.test__code }}</span>
+                    {{ row.test__name }}
+                </p>
+                <span class="text-sm font-semibold text-slate-800 shrink-0">{{ row.n }}</span>
+            </div>
+            <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full bg-primary-500 rounded-full" style="width: {% widthratio row.n top_tests_max 100 %}%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-400 py-4 text-center">{% trans "No tests requested in this window." %}</p>
+    {% endif %}
+</div>
+
+{% endblock %}

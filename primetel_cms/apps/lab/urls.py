@@ -9,6 +9,7 @@ urlpatterns = [
     path("", RedirectView.as_view(pattern_name="lab:queue", permanent=False), name="index"),
     path("queue/", views.lab_queue, name="queue"),
     path("results/", views.lab_results, name="results"),
+    path("reports/", views.lab_reports, name="reports"),
     path("orders/<uuid:pk>/", views.lab_order_detail, name="order_detail"),
     path("orders/<uuid:pk>/collect/", views.lab_collect, name="collect"),
     path("orders/<uuid:pk>/result/", views.lab_result_enter, name="result_enter"),

@@ -1,8 +1,10 @@
 """Primetel CMS — Lab Views."""
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count, F, ExpressionWrapper, DurationField
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -389,3 +391,110 @@ def _compute_flag(order: LabOrder, value):
             return "CRITICAL"
         return "HIGH"
     return "NORMAL"
+
+
+# ──────────────────────────────────────────────────────────────────
+#  Lab reports (volume, top tests, flags, TAT) — weekly/biweekly/monthly
+# ──────────────────────────────────────────────────────────────────
+
+# Period key → number of days in that window. Weekly = 7, biweekly = 14,
+# monthly = 30 (calendar month is fine but a 30-day rolling window is simpler
+# and matches "monthly" as people usually mean it for ops dashboards).
+_REPORT_PERIODS = [
+    ("week", _("This week"), 7),
+    ("biweek", _("Last 2 weeks"), 14),
+    ("month", _("Last 30 days"), 30),
+]
+
+
+def _median(values):
+    """Pure-Python median; returns None for empty input. Avoids numpy dep."""
+    vals = sorted(v for v in values if v is not None)
+    n = len(vals)
+    if n == 0:
+        return None
+    mid = n // 2
+    if n % 2 == 1:
+        return vals[mid]
+    return (vals[mid - 1] + vals[mid]) / 2
+
+
+@requires_role("LAB", "CLINICIAN", "ADMIN")
+@never_cache
+def lab_reports(request):
+    """Lab operational reports for a configurable rolling window.
+
+    Query: ?period=week|biweek|month (default: week).
+    Returns volume by status, top requested tests, abnormal-flag counts,
+    and median turnaround time (ORDERED → RESULTED).
+    """
+    selected = request.GET.get("period", "week")
+    period_lookup = {key: (label, days) for key, label, days in _REPORT_PERIODS}
+    if selected not in period_lookup:
+        selected = "week"
+    period_label, period_days = period_lookup[selected]
+    now = timezone.now()
+    since = now - timedelta(days=period_days)
+
+    in_window = LabOrder.objects.filter(ordered_at__gte=since)
+
+    # Volume by terminal status reached in the window. We bucket by current
+    # status so a result entered today shows up in RESULTED even if the order
+    # was placed at the start of the window. CANCELLED is shown separately.
+    counts_qs = in_window.values("status").annotate(n=Count("id"))
+    volume = {"ORDERED": 0, "COLLECTED": 0, "RESULTED": 0, "REVIEWED": 0, "CANCELLED": 0}
+    for row in counts_qs:
+        if row["status"] in volume:
+            volume[row["status"]] = row["n"]
+    volume_total = sum(volume.values())
+
+    # Top tests by request volume.
+    top_tests = list(
+        in_window.values("test__code", "test__name")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:10]
+    )
+    top_tests_max = max((row["n"] for row in top_tests), default=0)
+
+    # Abnormal-flag distribution. Only count results entered in the window so
+    # the "this week" number reflects actual lab work this week.
+    flag_qs = (
+        LabResult.objects.filter(created_at__gte=since)
+        .values("flag")
+        .annotate(n=Count("id"))
+    )
+    flags = {"NORMAL": 0, "LOW": 0, "HIGH": 0, "CRITICAL": 0, "UNFLAGGED": 0}
+    for row in flag_qs:
+        key = row["flag"] or "UNFLAGGED"
+        if key in flags:
+            flags[key] = row["n"]
+    flags_total = sum(flags.values())
+
+    # Median turnaround time (hours) from order to result. Ignore unresulted
+    # orders. Compute in Python — pulling timestamps and median-ing a few
+    # hundred rows is cheaper than a percentile aggregate that varies by DB.
+    tat_seconds = []
+    for o in in_window.exclude(resulted_at__isnull=True).only("ordered_at", "resulted_at"):
+        delta = (o.resulted_at - o.ordered_at).total_seconds()
+        if delta >= 0:
+            tat_seconds.append(delta)
+    tat_median_seconds = _median(tat_seconds)
+    tat_median_hours = round(tat_median_seconds / 3600.0, 1) if tat_median_seconds is not None else None
+    tat_count = len(tat_seconds)
+
+    return render(request, "lab/reports.html", {
+        "page_title": _("Lab Reports"),
+        "periods": _REPORT_PERIODS,
+        "selected_period": selected,
+        "period_label": period_label,
+        "period_days": period_days,
+        "since": since,
+        "volume": volume,
+        "volume_total": volume_total,
+        "top_tests": top_tests,
+        "top_tests_max": top_tests_max,
+        "flags": flags,
+        "flags_total": flags_total,
+        "tat_median_hours": tat_median_hours,
+        "tat_count": tat_count,
+    })

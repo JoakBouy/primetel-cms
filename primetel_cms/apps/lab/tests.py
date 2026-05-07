@@ -3,9 +3,11 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import translation
 
 from apps.accounts.models import Role
 from apps.encounters.models import Encounter
@@ -120,16 +122,26 @@ def test_lab_detail_shows_collected_state(client, order, lab_user):
     order.status = "COLLECTED"
     order.save(update_fields=["status"])
 
-    resp = client.get(reverse("lab:order_detail", args=[order.pk]))
+    # Force English so the visible label assertion is locale-independent.
+    # Default project locale is Swahili and renders "Sampuli imechukuliwa".
+    # Both the URL reverse and the request must happen under EN because
+    # i18n_patterns prefixes non-default languages with /en/.
+    client.cookies[settings.LANGUAGE_COOKIE_NAME] = "en"
+    with translation.override("en"):
+        url = reverse("lab:order_detail", args=[order.pk])
+    resp = client.get(url)
 
     assert resp.status_code == 200
-    assert b"Sample collected" in resp.content
+    # The id is language-independent; the visible label only renders in EN.
     assert b"lab-collected-state" in resp.content
+    assert b"Sample collected" in resp.content
 
 
 @pytest.mark.django_db
 def test_lab_print_uses_patient_number_label(order):
-    html = render_to_string("lab/order_print.html", {"order": order, "result": None})
+    # Force English for the locale-sensitive label check.
+    with translation.override("en"):
+        html = render_to_string("lab/order_print.html", {"order": order, "result": None})
 
     assert "Patient No." in html
     assert order.encounter.patient.patient_number in html

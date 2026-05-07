@@ -27,9 +27,10 @@
 </div>
 
 <!-- Sub-nav -->
-<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 max-w-md">
+<div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-6 max-w-xl">
     <a href="{% url 'lab:queue' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Pending" %}</a>
     <a href="{% url 'lab:results' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium bg-white text-slate-800 shadow-sm">{% trans "Results" %}</a>
+    <a href="{% url 'lab:reports' %}" class="flex-1 text-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">{% trans "Reports" %}</a>
 </div>
 {% endblock %}
 {% block content %}

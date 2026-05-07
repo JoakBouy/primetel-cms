@@ -40,7 +40,9 @@
 <!-- ═══════════════════════════════════════════════════ -->
 <!--  METRICS CARDS (Top Row)                            -->
 <!-- ═══════════════════════════════════════════════════ -->
+{% if nav_visible.encounters or nav_visible.billing or nav_visible.pharmacy or nav_visible.lab %}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    {% if nav_visible.encounters %}
     <!-- Patients Seen Today -->
     <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-patients-today">
         <div class="flex items-center justify-between mb-3">
@@ -52,7 +54,9 @@
         <p class="text-3xl font-bold text-slate-800">{{ patients_seen_today }}</p>
         <p class="text-xs text-slate-400 mt-1">{% trans "Patients seen" %}</p>
     </div>
+    {% endif %}
 
+    {% if nav_visible.billing %}
     <!-- Revenue Today -->
     <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-revenue-today">
         <div class="flex items-center justify-between mb-3">
@@ -64,7 +68,9 @@
         <p class="text-3xl font-bold text-slate-800">{{ revenue_today|floatformat:0|intcomma }}</p>
         <p class="text-xs text-slate-400 mt-1">{% trans "Revenue collected" %}</p>
     </div>
+    {% endif %}
 
+    {% if nav_visible.pharmacy %}
     <!-- Prescriptions Dispensed -->
     <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-rx-dispensed">
         <div class="flex items-center justify-between mb-3">
@@ -75,7 +81,9 @@
         <p class="text-3xl font-bold text-slate-800">{{ rx_dispensed_today }}</p>
         <p class="text-xs text-slate-400 mt-1">{% trans "Prescriptions dispensed" %}</p>
     </div>
+    {% endif %}
 
+    {% if nav_visible.lab %}
     <!-- Pending Labs -->
     <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-pending-labs">
         <div class="flex items-center justify-between mb-3">
@@ -86,11 +94,14 @@
         <p class="text-3xl font-bold text-slate-800">{{ pending_labs }}</p>
         <p class="text-xs text-slate-400 mt-1">{% trans "Pending labs" %}</p>
     </div>
+    {% endif %}
 </div>
+{% endif %}
 
 <!-- ═══════════════════════════════════════════════════ -->
 <!--  CHARTS ROW                                         -->
 <!-- ═══════════════════════════════════════════════════ -->
+{% if nav_visible.encounters %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <!-- Patient Volume Chart -->
     <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="chart-patient-volume">
@@ -136,10 +147,12 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- ═══════════════════════════════════════════════════ -->
 <!--  BOTTOM ROW: Alerts & Quick Actions                 -->
 <!-- ═══════════════════════════════════════════════════ -->
+{% if nav_visible.pharmacy %}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Low Stock Alert -->
     <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card" id="panel-low-stock">
@@ -191,10 +204,21 @@
         </div>
     </div>
 </div>
+{% endif %}
+
+{% if not nav_visible.encounters and not nav_visible.billing and not nav_visible.pharmacy and not nav_visible.lab %}
+<div class="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-card" id="dashboard-empty">
+    <div class="w-12 h-12 mx-auto bg-slate-100 rounded-xl flex items-center justify-center mb-3">
+        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </div>
+    <p class="text-sm text-slate-500">{% trans "Welcome." %} {% trans "Use the menu above to navigate to your work area." %}</p>
+</div>
+{% endif %}
 
 {% endblock %}
 
 {% block extra_js %}
+{% if nav_visible.encounters %}
 <script>
     // Patient Volume Chart
     const ctx = document.getElementById('patientVolumeChart');
@@ -234,4 +258,5 @@
         });
     }
 </script>
+{% endif %}
 {% endblock %}
