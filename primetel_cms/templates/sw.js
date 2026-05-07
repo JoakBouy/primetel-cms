@@ -1,4 +1,7 @@
-const CACHE_NAME = 'primetel-cms-v3';
+// Bumping the cache name on every release purges old assets and forces the
+// browser to fetch a fresh copy of every cacheable resource. If you're ever
+// debugging "I only see the old version", bump v3 → v4 etc.
+const CACHE_NAME = 'primetel-cms-v4';
 const ASSETS_TO_CACHE = [
     '/static/css/custom.css',
     '/static/img/logo.png',
@@ -10,10 +13,7 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('Opened cache');
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
     );
     self.skipWaiting();
 });
@@ -22,31 +22,24 @@ self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
 
-    if (request.method !== 'GET' || url.origin !== self.location.origin) {
-        return;
-    }
-
-    if (!url.pathname.startsWith('/static/')) {
-        event.respondWith(fetch(request));
+    // Never intercept non-GET, cross-origin, or anything outside /static/.
+    // This is critical: HTML pages, HTMX swaps, and POSTs MUST go straight to
+    // the network so authentication cookies and CSRF tokens are honored.
+    if (request.method !== 'GET'
+        || url.origin !== self.location.origin
+        || !url.pathname.startsWith('/static/')) {
         return;
     }
 
     event.respondWith(
-        caches.match(request).then((response) => {
-            if (response) {
-                return response;
-            }
-
+        caches.match(request).then((cached) => {
+            if (cached) return cached;
             return fetch(request).then((networkResponse) => {
                 if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
                     return networkResponse;
                 }
-
-                const responseToCache = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(request, responseToCache);
-                });
-
+                const clone = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
                 return networkResponse;
             });
         })
@@ -54,17 +47,13 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-    const cacheAllowlist = [CACHE_NAME];
+    const allowList = [CACHE_NAME];
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheAllowlist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys().then((names) =>
+            Promise.all(
+                names.map((n) => (allowList.indexOf(n) === -1 ? caches.delete(n) : null))
+            )
+        )
     );
     self.clients.claim();
 });

@@ -31,18 +31,56 @@
     </div>
 
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" x-data="{ showCancel: false, showAmend: false }">
-        <h2 class="text-sm font-semibold text-slate-700 mb-3">{% trans "Workflow" %}</h2>
-        <div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
-            <span class="badge badge-{{ order.status|lower }}">{{ order.get_status_display }}</span>
-            {% if order.collected_at %}
-            <span class="text-success-600">{% trans "Sample collected" %} · {{ order.collected_at|date:"d/m/Y H:i" }}</span>
-            {% elif order.status == "ORDERED" %}
-            <span class="text-warning-600">{% trans "Awaiting sample collection" %}</span>
-            {% endif %}
-            {% if order.resulted_at %}
-            <span class="text-primary-600">{% trans "Result saved" %} · {{ order.resulted_at|date:"d/m/Y H:i" }}</span>
-            {% endif %}
+        <h2 class="text-sm font-semibold text-slate-700 mb-4">{% trans "Workflow" %}</h2>
+
+        {# Status progress: ORDERED → COLLECTED → RESULTED → REVIEWED #}
+        {% if order.status != "CANCELLED" %}
+        <div class="mb-5">
+            <div class="flex items-center gap-2">
+                {# Step 1: ORDERED — always reached #}
+                <div class="flex-1 flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-success-500 text-white flex items-center justify-center text-xs font-bold">✓</div>
+                    <p class="text-[10px] font-semibold text-slate-700 mt-1">{% trans "Ordered" %}</p>
+                    <p class="text-[10px] text-slate-400">{{ order.ordered_at|date:"d/m H:i" }}</p>
+                </div>
+                <div class="flex-1 h-1 {% if order.collected_at or order.status == "RESULTED" or order.status == "REVIEWED" %}bg-success-500{% else %}bg-slate-200{% endif %} rounded-full"></div>
+
+                {# Step 2: COLLECTED #}
+                <div class="flex-1 flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full {% if order.collected_at or order.status == "RESULTED" or order.status == "REVIEWED" %}bg-success-500 text-white{% else %}bg-warning-500 text-white animate-pulse{% endif %} flex items-center justify-center text-xs font-bold">
+                        {% if order.collected_at or order.status == "RESULTED" or order.status == "REVIEWED" %}✓{% else %}2{% endif %}
+                    </div>
+                    <p class="text-[10px] font-semibold {% if order.collected_at or order.status == "RESULTED" or order.status == "REVIEWED" %}text-slate-700{% else %}text-warning-700{% endif %} mt-1">{% trans "Collected" %}</p>
+                    <p class="text-[10px] text-slate-400">{% if order.collected_at %}{{ order.collected_at|date:"d/m H:i" }}{% else %}{% trans "pending" %}{% endif %}</p>
+                </div>
+                <div class="flex-1 h-1 {% if order.status == "RESULTED" or order.status == "REVIEWED" %}bg-success-500{% else %}bg-slate-200{% endif %} rounded-full"></div>
+
+                {# Step 3: RESULTED #}
+                <div class="flex-1 flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full {% if order.status == "RESULTED" or order.status == "REVIEWED" %}bg-success-500 text-white{% elif order.status == "COLLECTED" %}bg-warning-500 text-white animate-pulse{% else %}bg-slate-200 text-slate-400{% endif %} flex items-center justify-center text-xs font-bold">
+                        {% if order.status == "RESULTED" or order.status == "REVIEWED" %}✓{% else %}3{% endif %}
+                    </div>
+                    <p class="text-[10px] font-semibold {% if order.status == "RESULTED" or order.status == "REVIEWED" %}text-slate-700{% elif order.status == "COLLECTED" %}text-warning-700{% else %}text-slate-400{% endif %} mt-1">{% trans "Resulted" %}</p>
+                    <p class="text-[10px] text-slate-400">{% if order.resulted_at %}{{ order.resulted_at|date:"d/m H:i" }}{% else %}—{% endif %}</p>
+                </div>
+                <div class="flex-1 h-1 {% if order.status == "REVIEWED" %}bg-success-500{% else %}bg-slate-200{% endif %} rounded-full"></div>
+
+                {# Step 4: REVIEWED #}
+                <div class="flex-1 flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full {% if order.status == "REVIEWED" %}bg-success-500 text-white{% elif order.status == "RESULTED" %}bg-warning-500 text-white animate-pulse{% else %}bg-slate-200 text-slate-400{% endif %} flex items-center justify-center text-xs font-bold">
+                        {% if order.status == "REVIEWED" %}✓{% else %}4{% endif %}
+                    </div>
+                    <p class="text-[10px] font-semibold {% if order.status == "REVIEWED" %}text-slate-700{% elif order.status == "RESULTED" %}text-warning-700{% else %}text-slate-400{% endif %} mt-1">{% trans "Reviewed" %}</p>
+                    <p class="text-[10px] text-slate-400">{% if order.reviewed_at %}{{ order.reviewed_at|date:"d/m H:i" }}{% else %}—{% endif %}</p>
+                </div>
+            </div>
         </div>
+        {% else %}
+        <div class="mb-4 px-4 py-3 bg-danger-50 border border-danger-200 rounded-xl">
+            <p class="text-sm font-semibold text-danger-700">{% trans "Order cancelled" %}</p>
+            {% if order.external_reference %}<p class="text-xs text-danger-600 mt-1">{{ order.external_reference }}</p>{% endif %}
+        </div>
+        {% endif %}
         <div class="flex flex-wrap items-center gap-2">
             {% if order.status == "ORDERED" %}
             <form method="post" action="{% url 'lab:collect' order.pk %}">

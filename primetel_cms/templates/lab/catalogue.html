@@ -58,6 +58,7 @@
                     {% endif %}
                 </td>
                 <td class="text-right">
+                    {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
                     <div class="flex items-center justify-end gap-2">
                         <a href="{% url 'lab:test_edit' t.pk %}" class="text-xs text-primary-600 hover:underline" id="test-edit-{{ t.pk }}">{% trans "Edit" %}</a>
                         <form method="post" action="{% url 'lab:test_toggle' t.pk %}" class="inline">
@@ -70,6 +71,9 @@
                             {% endif %}
                         </form>
                     </div>
+                    {% else %}
+                    <span class="text-[10px] text-slate-400">{% trans "Lab role required" %}</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

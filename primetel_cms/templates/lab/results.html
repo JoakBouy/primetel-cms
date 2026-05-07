@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block title %}{% trans "Lab Results" %}{% endblock %}
+{% block extra_head_js %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
 {% block page_header %}
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <div>

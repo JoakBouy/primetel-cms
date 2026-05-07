@@ -602,15 +602,28 @@
     {% block extra_js %}{% endblock %}
 
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                }, function(err) {
-                    console.log('ServiceWorker registration failed: ', err);
+        // Service worker — registers only on authenticated app pages so the
+        // login page and any auth flow always go straight to the network.
+        // Self-heals: if a stale SW from an old deploy is registered, unregister
+        // it before installing the current one. This prevents the "only works
+        // in incognito" class of bugs caused by leftover SW state.
+        (function () {
+            if (!('serviceWorker' in navigator)) return;
+            var path = window.location.pathname || '/';
+            var isAuthFlow = /^\/(login|logout|i18n)\//.test(path) || /\/login\/?$/.test(path);
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                    if (isAuthFlow) {
+                        // On login pages, just clear any existing SW so cookies are honored fresh.
+                        regs.forEach(function (r) { r.unregister(); });
+                        return;
+                    }
+                    navigator.serviceWorker.register('/sw.js').catch(function (err) {
+                        console.warn('ServiceWorker registration failed:', err);
+                    });
                 });
             });
-        }
+        })();
     </script>
 </body>
 </html>

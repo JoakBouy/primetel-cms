@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block title %}{% trans "Lab Queue" %}{% endblock %}
+{% block extra_head_js %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
 {% block page_header %}
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <div>
@@ -8,6 +13,10 @@
         <p class="text-sm text-slate-500 mt-0.5">{{ orders|length }} {% trans "pending orders" %}</p>
     </div>
     <div class="flex gap-2">
+        <button type="button" onclick="window.location.reload(true);" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-refresh" title="{% trans 'Refresh' %}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            {% trans "Refresh" %}
+        </button>
         <a href="{% url 'lab:results' %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-results">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             {% trans "Results" %}
@@ -31,15 +40,41 @@
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
     {% if orders %}
     <table class="data-table">
-        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Status" %}</th><th>{% trans "Ordered" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Specimen" %}</th><th>{% trans "Stage" %}</th><th>{% trans "Ordered" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
         <tbody>
             {% for order in orders %}
-            <tr>
-                <td class="font-medium text-slate-800">{{ order.encounter.patient.full_name }}</td>
+            <tr class="{% if order.status == "ORDERED" %}bg-warning-50/30{% endif %}">
+                <td class="font-medium text-slate-800">
+                    {{ order.encounter.patient.full_name }}
+                    <p class="text-[10px] text-slate-400 font-mono">{{ order.encounter.patient.patient_number }}</p>
+                </td>
                 <td class="text-sm">{{ order.test.code }} — {{ order.test.name }}</td>
-                <td><span class="badge badge-{{ order.status|lower }}">{{ order.get_status_display }}</span></td>
+                <td class="text-xs text-slate-500">{{ order.test.get_specimen_type_display }}</td>
+                <td>
+                    {% if order.status == "ORDERED" %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-warning-100 text-warning-800 text-xs font-semibold rounded-full">
+                        <span class="w-1.5 h-1.5 bg-warning-500 rounded-full animate-pulse"></span>
+                        {% trans "Awaiting collection" %}
+                    </span>
+                    {% elif order.status == "COLLECTED" %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-primary-100 text-primary-800 text-xs font-semibold rounded-full">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        {% trans "Sample collected — enter result" %}
+                    </span>
+                    {% endif %}
+                </td>
                 <td class="text-xs text-slate-400">{{ order.ordered_at|timesince }} {% trans "ago" %}</td>
-                <td class="text-right"><a href="{% url 'lab:order_detail' order.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">{% trans "Process" %}</a></td>
+                <td class="text-right">
+                    {% if order.status == "ORDERED" %}{% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+                    <form method="post" action="{% url 'lab:collect' order.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="px-3 py-1.5 text-xs font-medium text-white bg-warning-500 hover:bg-warning-600 rounded-lg transition-colors" id="lab-collect-{{ order.pk }}">{% trans "Mark collected" %}</button>
+                    </form>
+                    {% endif %}{% endif %}
+                    <a href="{% url 'lab:order_detail' order.pk %}" class="ml-1 inline-block px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
+                        {% if order.status == "COLLECTED" %}{% trans "Enter result" %}{% else %}{% trans "Open" %}{% endif %}
+                    </a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
