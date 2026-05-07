@@ -1,4 +1,5 @@
 """Primetel CMS — Pharmacy Views."""
+import calendar
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -314,6 +315,21 @@ def rx_print(request, pk):
 DRUG_FORMS = ["TABLET", "CAPSULE", "SYRUP", "INJECTION", "CREAM", "DROPS", "OTHER"]
 
 
+def _parse_expiry_month(raw: str):
+    """Parse pharmacy expiry input and store it as the month's final day."""
+    raw = (raw or "").strip()
+    if not raw:
+        raise ValueError("Expiry month is required.")
+    for fmt in ("%Y-%m", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(raw, fmt).date()
+            last_day = calendar.monthrange(parsed.year, parsed.month)[1]
+            return parsed.replace(day=last_day)
+        except ValueError:
+            continue
+    raise ValueError("Expiry must be YYYY-MM.")
+
+
 @requires_role("PHARMACY", "ADMIN")
 def drug_catalogue(request):
     """List the full drug formulary, including inactive entries."""
@@ -328,7 +344,7 @@ def drug_catalogue(request):
 def drug_create(request):
     """Add a drug to the formulary, optionally with a first stock batch.
 
-    If batch_number / expiry_date / quantity_on_hand are supplied, a StockItem
+    If batch_number / expiry month / quantity_on_hand are supplied, a StockItem
     is created in the same transaction so the pharmacy doesn't have to do a
     separate "receive stock" step on the very first batch.
     """
@@ -347,13 +363,10 @@ def drug_create(request):
                     # Any of these means the user intends to register a batch.
                     # Validate the trio together so partial input is rejected.
                     if not (batch_number and expiry_raw and qty_raw):
-                        raise ValueError("Batch number, expiry date and quantity are all required to register a batch.")
-                    try:
-                        expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
-                    except ValueError:
-                        raise ValueError("Expiry date must be YYYY-MM-DD.")
+                        raise ValueError("Batch number, expiry month and quantity are all required to register a batch.")
+                    expiry = _parse_expiry_month(expiry_raw)
                     if expiry <= timezone.now().date():
-                        raise ValueError("Expiry date must be in the future.")
+                        raise ValueError("Expiry month must be in the future.")
                     try:
                         qty = int(qty_raw)
                     except ValueError:
@@ -463,15 +476,15 @@ def stock_receive(request, drug_pk):
         except ValueError:
             qty = 0
         if not batch_number or qty <= 0 or not expiry_raw:
-            messages.error(request, _("Batch number, positive quantity, and expiry date are all required."))
+            messages.error(request, _("Batch number, positive quantity, and expiry month are all required."))
             return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
         try:
-            expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
-        except ValueError:
-            messages.error(request, _("Expiry date must be YYYY-MM-DD."))
+            expiry = _parse_expiry_month(expiry_raw)
+        except ValueError as exc:
+            messages.error(request, str(exc))
             return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
         if expiry <= timezone.now().date():
-            messages.error(request, _("Expiry date must be in the future."))
+            messages.error(request, _("Expiry month must be in the future."))
             return redirect("pharmacy:stock_receive", drug_pk=drug.pk)
         item = StockItem.objects.create(
             drug=drug, batch_number=batch_number, expiry_date=expiry, quantity_on_hand=qty,
@@ -608,7 +621,7 @@ def rx_void(request, pk):
 
 @requires_role("PHARMACY", "ADMIN")
 def stock_edit(request, item_pk):
-    """Edit an existing stock batch (correct typos in batch number, expiry date,
+    """Edit an existing stock batch (correct typos in batch number, expiry month,
     or quantity). Quantity changes are recorded as a StockMovement so the audit
     trail remains complete."""
     item = get_object_or_404(StockItem.objects.select_related("drug"), pk=item_pk)
@@ -617,12 +630,12 @@ def stock_edit(request, item_pk):
         expiry_raw = (request.POST.get("expiry_date") or "").strip()
         qty_raw = (request.POST.get("quantity_on_hand") or "").strip()
         if not batch_number or not expiry_raw or not qty_raw:
-            messages.error(request, _("Batch number, expiry date and quantity are all required."))
+            messages.error(request, _("Batch number, expiry month and quantity are all required."))
             return redirect("pharmacy:stock_edit", item_pk=item.pk)
         try:
-            expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
-        except ValueError:
-            messages.error(request, _("Expiry date must be YYYY-MM-DD."))
+            expiry = _parse_expiry_month(expiry_raw)
+        except ValueError as exc:
+            messages.error(request, str(exc))
             return redirect("pharmacy:stock_edit", item_pk=item.pk)
         try:
             new_qty = int(qty_raw)

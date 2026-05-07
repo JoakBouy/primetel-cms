@@ -43,7 +43,7 @@
             {% for b in batches %}
             <tr>
                 <td class="font-mono text-sm">{{ b.batch_number }}</td>
-                <td class="text-sm">{{ b.expiry_date|date:"d/m/Y" }}</td>
+                <td class="text-sm">{{ b.expiry_date|date:"M Y" }}</td>
                 <td class="font-semibold">{{ b.quantity_on_hand }}</td>
                 <td>
                     {% if b.is_expired %}<span class="badge badge-cancelled">{% trans "Expired" %}</span>

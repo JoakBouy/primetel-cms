@@ -96,6 +96,9 @@ def test_lab_collect_transitions_status(client, order, lab_user):
 
 @pytest.mark.django_db
 def test_lab_result_entry_sets_flag_and_status(client, order, lab_user):
+    order.status = "COLLECTED"
+    order.save(update_fields=["status"])
+
     client.force_login(lab_user)
     resp = client.post(
         reverse("lab:result_enter", args=[order.pk]),

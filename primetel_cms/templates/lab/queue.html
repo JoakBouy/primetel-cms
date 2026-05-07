@@ -41,7 +41,7 @@
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
     {% if orders %}
     <table class="data-table">
-        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Specimen" %}</th><th>{% trans "Stage" %}</th><th>{% trans "Ordered" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
+        <thead><tr><th>{% trans "Patient" %}</th><th>{% trans "Test" %}</th><th>{% trans "Specimen" %}</th><th>{% trans "Payment" %}</th><th>{% trans "Stage" %}</th><th>{% trans "Ordered" %}</th><th class="text-right">{% trans "Actions" %}</th></tr></thead>
         <tbody>
             {% for order in orders %}
             <tr class="{% if order.status == "ORDERED" %}bg-warning-50/30{% endif %}">
@@ -51,6 +51,14 @@
                 </td>
                 <td class="text-sm">{{ order.test.code }} — {{ order.test.name }}</td>
                 <td class="text-xs text-slate-500">{{ order.test.get_specimen_type_display }}</td>
+                <td>
+                    {% if order.payment_is_paid %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-success-50 text-success-700 text-xs font-semibold rounded-full">{% trans "Paid" %}</span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-danger-50 text-danger-700 text-xs font-semibold rounded-full">{% trans "Payment due" %}</span>
+                    <p class="text-[10px] text-danger-500 mt-1">{{ order.payment_balance_tzs|floatformat:0 }} TZS</p>
+                    {% endif %}
+                </td>
                 <td>
                     {% if order.status == "ORDERED" %}
                     <span class="inline-flex items-center gap-1.5 px-2 py-1 bg-warning-100 text-warning-800 text-xs font-semibold rounded-full">
@@ -67,10 +75,14 @@
                 <td class="text-xs text-slate-400">{{ order.ordered_at|timesince }} {% trans "ago" %}</td>
                 <td class="text-right">
                     {% if order.status == "ORDERED" %}{% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+                    {% if order.payment_is_paid %}
                     <form method="post" action="{% url 'lab:collect' order.pk %}" class="inline">
                         {% csrf_token %}
                         <button type="submit" class="px-3 py-1.5 text-xs font-medium text-white bg-warning-500 hover:bg-warning-600 rounded-lg transition-colors" id="lab-collect-{{ order.pk }}">{% trans "Mark collected" %}</button>
                     </form>
+                    {% else %}
+                    <span class="inline-block px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-50 rounded-lg" title="{% trans 'Awaiting payment' %}">{% trans "Locked" %}</span>
+                    {% endif %}
                     {% endif %}{% endif %}
                     <a href="{% url 'lab:order_detail' order.pk %}" class="ml-1 inline-block px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
                         {% if order.status == "COLLECTED" %}{% trans "Enter result" %}{% else %}{% trans "Open" %}{% endif %}

@@ -33,7 +33,7 @@
                 <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Batch" %}</label>
                 <select name="stock_item" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="dispense-batch">
                     {% for b in batches %}
-                    <option value="{{ b.pk }}">{{ b.batch_number }} — {% trans "exp" %} {{ b.expiry_date|date:"d/m/Y" }} — {% trans "on hand" %} {{ b.quantity_on_hand }}</option>
+                    <option value="{{ b.pk }}">{{ b.batch_number }} — {% trans "exp" %} {{ b.expiry_date|date:"M Y" }} — {% trans "on hand" %} {{ b.quantity_on_hand }}</option>
                     {% endfor %}
                 </select>
             </div>

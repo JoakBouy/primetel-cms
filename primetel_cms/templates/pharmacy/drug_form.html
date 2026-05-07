@@ -77,8 +77,8 @@
                     <input type="text" name="batch_number" maxlength="50" value="{{ form_data.batch_number|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono" id="drug-batch" placeholder="e.g. AMX-2026-04">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Expiry date" %}</label>
-                    <input type="date" name="expiry_date" value="{{ form_data.expiry_date|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="drug-expiry">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Expiry month" %}</label>
+                    <input type="month" name="expiry_date" value="{{ form_data.expiry_date|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="drug-expiry">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Quantity on hand" %}</label>

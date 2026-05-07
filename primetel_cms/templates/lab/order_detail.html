@@ -23,6 +23,15 @@
             <dt class="text-slate-500">{% trans "Ordered by" %}</dt><dd>{{ order.ordered_by.full_name|default:order.ordered_by.username }}</dd>
             <dt class="text-slate-500">{% trans "Ordered at" %}</dt><dd>{{ order.ordered_at|date:"d/m/Y H:i" }}</dd>
             <dt class="text-slate-500">{% trans "Specimen" %}</dt><dd>{{ order.test.get_specimen_type_display }}</dd>
+            <dt class="text-slate-500">{% trans "Payment" %}</dt>
+            <dd>
+                {% if payment_is_paid %}
+                <span class="inline-flex items-center px-2 py-0.5 bg-success-50 text-success-700 text-xs font-semibold rounded-full">{% trans "Paid" %}</span>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 bg-danger-50 text-danger-700 text-xs font-semibold rounded-full">{% trans "Payment due" %}</span>
+                {% if payment_invoice %}<span class="ml-1 text-xs text-danger-600">{{ payment_invoice.balance_tzs|floatformat:0 }} TZS</span>{% endif %}
+                {% endif %}
+            </dd>
             {% if order.test.reference_range_min or order.test.reference_range_max %}
             <dt class="text-slate-500">{% trans "Reference range" %}</dt>
             <dd>{{ order.test.reference_range_min|default:"–" }} to {{ order.test.reference_range_max|default:"–" }} {{ order.test.reference_unit }}</dd>
@@ -84,10 +93,14 @@
         <div class="flex flex-wrap items-center gap-2">
             {% if order.status == "ORDERED" %}
                 {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+                {% if payment_is_paid %}
                 <form method="post" action="{% url 'lab:collect' order.pk %}">
                     {% csrf_token %}
                     <button class="px-3 py-1.5 bg-warning-500 text-white text-sm rounded-lg" id="lab-collect">{% trans "Mark sample collected" %}</button>
                 </form>
+                {% else %}
+                <span class="px-3 py-1.5 bg-danger-50 text-danger-700 text-sm rounded-lg" id="lab-payment-locked">{% trans "Awaiting payment" %}</span>
+                {% endif %}
                 {% else %}
                 <span class="px-3 py-1.5 bg-warning-50 text-warning-700 text-sm rounded-lg">{% trans "Awaiting collection" %}</span>
                 {% endif %}
@@ -144,7 +157,7 @@
         {% endif %}
     </div>
 
-    {% if order.status == "ORDERED" or order.status == "COLLECTED" or order.status == "RESULTED" %}
+    {% if order.status == "COLLECTED" or order.status == "RESULTED" %}
     {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">{% if result %}{% trans "Update result" %}{% else %}{% trans "Enter result" %}{% endif %}</h2>

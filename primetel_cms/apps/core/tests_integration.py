@@ -13,6 +13,7 @@ These run as part of the full pytest suite. They are intentionally
 end-to-end (HTTP-level via the test Client) so a regression in any of the
 glue code surfaces here.
 """
+import calendar
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -327,13 +328,79 @@ def test_payment_gate_unlocks_after_payment(client, nurse, receptionist, encount
 
 
 @pytest.mark.django_db
-def test_payment_gate_blocks_lab_order_when_unpaid(client, clinician, encounter, consult_invoice):
+def test_clinician_can_record_vitals_after_payment(client, clinician, receptionist, encounter, consult_invoice):
+    client.force_login(receptionist)
+    client.post(
+        reverse("billing:payment_record", args=[consult_invoice.pk]),
+        data={"method": "CASH", "amount_tzs": "5000"},
+    )
+
     client.force_login(clinician)
-    LabTest.objects.create(code="HGB", name="Haemoglobin", specimen_type="BLOOD", price_tzs=Decimal("3000"))
-    resp = client.get(reverse("lab:order_new", args=[encounter.pk]))
-    # Should redirect back to encounter detail with an error flash.
+    resp = client.post(
+        reverse("encounters:add_vitals", args=[encounter.pk]),
+        data={"pulse": 82, "temperature": "37.1"},
+    )
     assert resp.status_code == 302
-    assert reverse("encounters:detail", args=[encounter.pk]) in resp.headers.get("Location", "")
+    vitals = encounter.vitals.get()
+    assert vitals.recorded_by == clinician
+    assert vitals.pulse == 82
+
+
+@pytest.mark.django_db
+def test_lab_order_allowed_unpaid_bills_and_notifies_reception(
+    client, clinician, lab_tech, receptionist, encounter, consult_invoice
+):
+    client.force_login(clinician)
+    test = LabTest.objects.create(
+        code="HGB", name="Haemoglobin", specimen_type="BLOOD", price_tzs=Decimal("3000")
+    )
+    Notification.objects.all().delete()
+
+    resp = client.post(reverse("lab:order_new", args=[encounter.pk]), data={"test": str(test.pk)})
+    assert resp.status_code == 302
+    order = LabOrder.objects.get(test=test, encounter=encounter)
+    consult_invoice.refresh_from_db()
+    assert consult_invoice.lines.count() == 2
+    assert consult_invoice.total_tzs == Decimal("8000")
+    assert consult_invoice.balance_tzs == Decimal("8000")
+    assert Notification.objects.filter(recipient=lab_tech, title="New lab order").exists()
+    assert Notification.objects.filter(recipient=receptionist, kind="PAYMENT_REQUIRED").exists()
+
+    client.force_login(lab_tech)
+    queue = client.get(reverse("lab:queue"))
+    assert queue.status_code == 200
+    assert str(order.pk).encode() in queue.content
+    assert b"Payment due" in queue.content
+
+
+@pytest.mark.django_db
+def test_lab_collect_blocked_until_invoice_paid(client, clinician, lab_tech, receptionist, encounter, consult_invoice):
+    test = LabTest.objects.create(
+        code="HGB", name="Haemoglobin", specimen_type="BLOOD", price_tzs=Decimal("3000")
+    )
+    client.force_login(clinician)
+    client.post(reverse("lab:order_new", args=[encounter.pk]), data={"test": str(test.pk)})
+    order = LabOrder.objects.get(test=test, encounter=encounter)
+
+    client.force_login(lab_tech)
+    resp = client.post(reverse("lab:collect", args=[order.pk]))
+    assert resp.status_code == 302
+    order.refresh_from_db()
+    assert order.status == "ORDERED"
+
+    client.force_login(receptionist)
+    client.post(
+        reverse("billing:payment_record", args=[consult_invoice.pk]),
+        data={"method": "CASH", "amount_tzs": "8000"},
+    )
+    consult_invoice.refresh_from_db()
+    assert consult_invoice.status == "PAID"
+
+    client.force_login(lab_tech)
+    resp = client.post(reverse("lab:collect", args=[order.pk]))
+    assert resp.status_code == 302
+    order.refresh_from_db()
+    assert order.status == "COLLECTED"
 
 
 @pytest.mark.django_db
@@ -554,7 +621,8 @@ def test_bell_mark_all_read(client, clinician):
 @pytest.mark.django_db
 def test_drug_create_with_first_batch(client, pharmacist):
     client.force_login(pharmacist)
-    expiry = (date.today() + timedelta(days=400)).isoformat()
+    expiry_candidate = date.today() + timedelta(days=400)
+    expiry = expiry_candidate.strftime("%Y-%m")
     resp = client.post(
         reverse("pharmacy:drug_create"),
         data={
@@ -576,6 +644,11 @@ def test_drug_create_with_first_batch(client, pharmacist):
     assert batch is not None
     assert batch.quantity_on_hand == 100
     assert batch.batch_number == "AMX-2026-04"
+    assert batch.expiry_date == date(
+        expiry_candidate.year,
+        expiry_candidate.month,
+        calendar.monthrange(expiry_candidate.year, expiry_candidate.month)[1],
+    )
 
 
 @pytest.mark.django_db
@@ -629,7 +702,8 @@ def test_drug_create_with_partial_batch_fields_rejected(client, pharmacist):
 @pytest.mark.django_db
 def test_stock_edit_updates_batch(client, pharmacist, drug, stock_batch):
     client.force_login(pharmacist)
-    new_expiry = (date.today() + timedelta(days=200)).isoformat()
+    expiry_candidate = date.today() + timedelta(days=200)
+    new_expiry = expiry_candidate.strftime("%Y-%m")
     resp = client.post(
         reverse("pharmacy:stock_edit", args=[stock_batch.pk]),
         data={
@@ -642,6 +716,11 @@ def test_stock_edit_updates_batch(client, pharmacist, drug, stock_batch):
     stock_batch.refresh_from_db()
     assert stock_batch.batch_number == "PCM-CORRECTED"
     assert stock_batch.quantity_on_hand == 80
+    assert stock_batch.expiry_date == date(
+        expiry_candidate.year,
+        expiry_candidate.month,
+        calendar.monthrange(expiry_candidate.year, expiry_candidate.month)[1],
+    )
 
 
 # ──────────────────────────────────────────────────────────────────

@@ -38,6 +38,55 @@ def _audit(request, action, obj, **metadata):
         pass
 
 
+def _invoice_for_order(order):
+    """Return the encounter invoice used to determine whether lab work is paid."""
+    try:
+        from apps.billing.models import Invoice
+        return Invoice.objects.filter(encounter_id=order.encounter_id).first()
+    except Exception:
+        return None
+
+
+def _invoice_is_paid(invoice) -> bool:
+    """Legacy orders without an invoice are treated as payable/collectable."""
+    if invoice is None:
+        return True
+    return invoice.status in ("PAID", "WAIVED") or invoice.balance_tzs <= 0
+
+
+def _attach_payment_state(orders):
+    """Attach display-only payment state to lab orders for templates."""
+    order_list = list(orders)
+    for order in order_list:
+        invoice = _invoice_for_order(order)
+        order.payment_invoice = invoice
+        order.payment_is_paid = _invoice_is_paid(invoice)
+        order.payment_balance_tzs = invoice.balance_tzs if invoice is not None else 0
+    return order_list
+
+
+def _bill_lab_order(order):
+    """Add a lab test line to the encounter invoice and reopen balance if needed."""
+    try:
+        from apps.billing.models import Invoice, InvoiceLine
+        invoice = Invoice.objects.filter(encounter_id=order.encounter_id).first()
+        if invoice is None or invoice.status in ("CANCELLED", "WAIVED"):
+            return None
+        InvoiceLine.objects.create(
+            invoice=invoice,
+            description=f"{order.test.code} {order.test.name}",
+            quantity=Decimal("1"),
+            unit_price_tzs=order.test.price_tzs or Decimal("0"),
+        )
+        invoice.recalculate()
+        if invoice.balance_tzs > 0 and invoice.status == "PAID":
+            invoice.status = "PARTIALLY_PAID"
+            invoice.save(update_fields=["status"])
+        return invoice
+    except Exception:
+        return None
+
+
 @requires_role("LAB", "CLINICIAN", "PHARMACY", "ADMIN")
 @never_cache
 def lab_queue(request):
@@ -47,7 +96,7 @@ def lab_queue(request):
     ).select_related("encounter__patient", "test", "ordered_by").order_by("ordered_at")
     return render(request, "lab/queue.html", {
         "page_title": _("Lab Queue"),
-        "orders": pending,
+        "orders": _attach_payment_state(pending),
     })
 
 
@@ -73,11 +122,14 @@ def lab_order_detail(request, pk):
     )
     result = getattr(order, "result", None)
     flag = _compute_flag(order, result.value_numeric) if result and result.value_numeric is not None else None
+    invoice = _invoice_for_order(order)
     return render(request, "lab/order_detail.html", {
         "page_title": order.test.name,
         "order": order,
         "result": result,
         "computed_flag": flag,
+        "payment_invoice": invoice,
+        "payment_is_paid": _invoice_is_paid(invoice),
     })
 
 
@@ -85,9 +137,16 @@ def lab_order_detail(request, pk):
 @requires_role("LAB", "ADMIN")
 def lab_collect(request, pk):
     """Mark a lab order as 'sample collected'."""
-    order = get_object_or_404(LabOrder, pk=pk)
+    order = get_object_or_404(LabOrder.objects.select_related("encounter"), pk=pk)
     if order.status != "ORDERED":
         messages.error(request, _("Only newly ordered tests can be marked collected."))
+        return redirect("lab:order_detail", pk=pk)
+    invoice = _invoice_for_order(order)
+    if not _invoice_is_paid(invoice):
+        messages.error(
+            request,
+            _("Awaiting payment confirmation. Send the patient to reception before collecting the sample.")
+        )
         return redirect("lab:order_detail", pk=pk)
     order.status = "COLLECTED"
     order.collected_at = timezone.now()
@@ -104,6 +163,9 @@ def lab_result_enter(request, pk):
     order = get_object_or_404(LabOrder.objects.select_related("test"), pk=pk)
     if order.status in ("CANCELLED", "REVIEWED"):
         messages.error(request, _("This order is closed."))
+        return redirect("lab:order_detail", pk=pk)
+    if order.status == "ORDERED":
+        messages.error(request, _("Collect the sample before entering results."))
         return redirect("lab:order_detail", pk=pk)
 
     value_numeric = request.POST.get("value_numeric") or ""
@@ -226,30 +288,44 @@ def lab_order_new(request, encounter_pk):
     if encounter.status == "FINALISED":
         messages.error(request, _("Encounter is finalised. Reopen it to order a test."))
         return redirect("encounters:detail", pk=encounter.pk)
-    # Hard payment gate: services rendered only after billing.
-    from apps.billing.models import Invoice
-    inv = Invoice.objects.filter(encounter=encounter).first()
-    if inv is not None and inv.status not in ("PAID", "WAIVED") and inv.balance_tzs > 0:
-        messages.error(request, _("Awaiting payment confirmation. The receptionist must record the consultation payment before lab tests can be ordered."))
-        return redirect("encounters:detail", pk=encounter.pk)
     tests = LabTest.objects.filter(is_active=True).order_by("name")
     if request.method == "POST":
         test = get_object_or_404(LabTest, pk=request.POST.get("test"))
         order = LabOrder.objects.create(
             encounter=encounter, test=test, ordered_by=request.user, created_by=request.user
         )
-        messages.success(request, _("Lab order placed."))
+        invoice = _bill_lab_order(order)
+        if invoice is not None and test.price_tzs > 0:
+            messages.success(
+                request,
+                _("Lab order placed and billed at %(p)s TZS.") % {"p": test.price_tzs},
+            )
+        else:
+            messages.success(request, _("Lab order placed."))
         notify_role(
             "LAB",
             exclude_actor=request.user,
             kind="LAB_RESULT_READY",  # repurposed: "lab work to do"
             level="INFO",
             title=_("New lab order"),
-            body=f"{encounter.patient.full_name} · {test.code} {test.name}",
+            body=f"{encounter.patient.full_name} · {test.code} {test.name}"
+                 + (str(_(" · payment due")) if invoice is not None and not _invoice_is_paid(invoice) else ""),
             url=f"/lab/orders/{order.pk}/",
             entity_type="LabOrder",
             entity_id=order.pk,
         )
+        if invoice is not None and invoice.balance_tzs > 0:
+            notify_role(
+                ["RECEPTIONIST", "FINANCE"],
+                exclude_actor=request.user,
+                kind="PAYMENT_REQUIRED",
+                level="WARNING",
+                title=_("Lab payment to collect"),
+                body=f"{encounter.patient.full_name} · {test.code} {test.name} · {invoice.balance_tzs} TZS",
+                url=f"/billing/invoices/{invoice.pk}/",
+                entity_type="Invoice",
+                entity_id=invoice.pk,
+            )
         return redirect("encounters:detail", pk=encounter.pk)
     return render(request, "lab/order_new.html", {
         "page_title": _("Order Lab Test"),
