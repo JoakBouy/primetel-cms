@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.billing.models import Invoice
 from apps.encounters.models import Encounter, MentalHealthAssessment, Vitals
 from apps.patients.models import Patient
 
@@ -133,6 +134,28 @@ def test_finalised_encounter_blocks_vitals_via_view(client, encounter, nurse, cl
     # View redirects (with error message) instead of creating vitals.
     assert resp.status_code == 302
     assert encounter.vitals.count() == 0
+
+
+@pytest.mark.django_db
+def test_nurse_can_start_encounter_for_vitals_then_clinician_claims_it(client, nurse, clinician, patient):
+    client.force_login(nurse)
+    resp = client.get(reverse("encounters:new") + f"?patient={patient.pk}")
+    assert resp.status_code == 200
+
+    resp = client.post(
+        reverse("encounters:new") + f"?patient={patient.pk}",
+        data={"encounter_type": "GENERAL", "chief_complaint": "Vitals check"},
+    )
+    assert resp.status_code == 302
+    encounter = Encounter.objects.get(patient=patient)
+    assert encounter.clinician == nurse
+    assert Invoice.objects.filter(encounter=encounter).exists()
+
+    client.force_login(clinician)
+    resp = client.get(reverse("encounters:detail", args=[encounter.pk]))
+    assert resp.status_code == 200
+    encounter.refresh_from_db()
+    assert encounter.clinician == clinician
 
 
 @pytest.mark.django_db

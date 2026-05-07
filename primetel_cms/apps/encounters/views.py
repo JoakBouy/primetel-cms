@@ -105,7 +105,19 @@ def _notify_billing_for_new_invoice(invoice, actor):
         pass
 
 
-@requires_role("CLINICIAN", "ADMIN")
+def _claim_nurse_started_encounter(encounter, user):
+    """Assign clinical ownership when a clinician continues nurse intake."""
+    if (
+        getattr(user, "role_code", None) == "CLINICIAN"
+        and getattr(getattr(encounter, "clinician", None), "role_code", None) == "NURSE"
+        and encounter.status == "DRAFT"
+    ):
+        encounter.clinician = user
+        encounter.updated_by = user
+        encounter.save(update_fields=["clinician", "updated_by", "updated_at"])
+
+
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
 def encounter_new(request):
     """Start a new encounter for a patient — or resume an open draft."""
     patient_pk = request.GET.get("patient")
@@ -204,6 +216,7 @@ def encounter_detail(request, pk):
         )
     except Encounter.DoesNotExist:
         raise Http404("Encounter not found")
+    _claim_nurse_started_encounter(encounter, request.user)
     mh_assessment = getattr(encounter, "mental_health_assessment", None)
     # Invoice for this encounter (created automatically on encounter open).
     from apps.billing.models import Invoice
