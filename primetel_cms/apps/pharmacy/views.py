@@ -203,84 +203,125 @@ def rx_prescribe(request, encounter_pk):
     drugs = Drug.objects.filter(is_active=True).order_by("generic_name")
 
     if request.method == "POST":
-        drug = get_object_or_404(Drug, pk=request.POST.get("drug"))
+        drug_ids = request.POST.getlist("drug") or [request.POST.get("drug")]
+        doses = request.POST.getlist("dose") or [request.POST.get("dose")]
+        frequencies = request.POST.getlist("frequency") or [request.POST.get("frequency")]
+        durations = request.POST.getlist("duration_days") or [request.POST.get("duration_days")]
+        quantities = request.POST.getlist("quantity") or [request.POST.get("quantity")]
+        instructions_list = request.POST.getlist("instructions") or [request.POST.get("instructions")]
+        prescription_rows = []
+        max_rows = max(len(drug_ids), len(doses), len(frequencies), len(durations), len(quantities), len(instructions_list))
+
         try:
-            quantity = int(request.POST.get("quantity") or 0)
-            duration_days = int(request.POST.get("duration_days") or 0)
+            for idx in range(max_rows):
+                drug_id = (drug_ids[idx] if idx < len(drug_ids) else "") or ""
+                dose = ((doses[idx] if idx < len(doses) else "") or "").strip()
+                frequency = ((frequencies[idx] if idx < len(frequencies) else "") or "").strip()
+                duration_raw = (durations[idx] if idx < len(durations) else "") or ""
+                quantity_raw = (quantities[idx] if idx < len(quantities) else "") or ""
+                instructions = (instructions_list[idx] if idx < len(instructions_list) else "") or ""
+                if not any([drug_id, dose, frequency, duration_raw, quantity_raw, instructions.strip()]):
+                    continue
+                if not drug_id:
+                    raise ValueError
+                drug = get_object_or_404(Drug, pk=drug_id)
+                quantity = int(quantity_raw or 0)
+                duration_days = int(duration_raw or 0)
+                if not dose or not frequency or quantity <= 0 or duration_days <= 0:
+                    raise ValueError
+                prescription_rows.append({
+                    "drug": drug,
+                    "dose": dose,
+                    "frequency": frequency,
+                    "duration_days": duration_days,
+                    "quantity": quantity,
+                    "instructions": instructions,
+                })
         except (TypeError, ValueError):
-            messages.error(request, _("Quantity and duration must be whole numbers."))
-            return redirect("pharmacy:rx_prescribe", encounter_pk=encounter.pk)
-        dose = (request.POST.get("dose") or "").strip()
-        frequency = (request.POST.get("frequency") or "").strip()
-        if not dose or not frequency or quantity <= 0 or duration_days <= 0:
-            messages.error(request, _("Dose, frequency, quantity and duration are all required."))
+            messages.error(request, _("Drug, dose, frequency, quantity and duration are required for each medicine."))
             return redirect("pharmacy:rx_prescribe", encounter_pk=encounter.pk)
 
-        # Drug-allergy check
-        match = check_allergy(encounter.patient, drug)
+        if not prescription_rows:
+            messages.error(request, _("Add at least one medicine."))
+            return redirect("pharmacy:rx_prescribe", encounter_pk=encounter.pk)
+
+        allergy_matches = [
+            match for match in (
+                check_allergy(encounter.patient, row["drug"]) for row in prescription_rows
+            )
+            if match
+        ]
         override_ack = request.POST.get("allergy_override") == "on"
         override_reason = (request.POST.get("override_reason") or "").strip()
 
-        if match and not (override_ack and override_reason):
+        if allergy_matches and not (override_ack and override_reason):
             return render(request, "pharmacy/prescribe.html", {
                 "page_title": _("Prescribe"),
                 "encounter": encounter,
                 "drugs": drugs,
-                "allergy_match": match,
+                "allergy_match": "; ".join(allergy_matches),
                 "form_data": request.POST,
             })
 
-        instructions = request.POST.get("instructions", "")
-        if match and override_ack:
-            instructions = (
-                f"[ALLERGY OVERRIDE — {match}] reason: {override_reason}\n{instructions}"
-            ).strip()
+        created = []
+        billed_any = False
+        for row in prescription_rows:
+            drug = row["drug"]
+            instructions = row["instructions"]
+            match = check_allergy(encounter.patient, drug)
+            if match and override_ack:
+                instructions = (
+                    f"[ALLERGY OVERRIDE — {match}] reason: {override_reason}\n{instructions}"
+                ).strip()
+            rx = Prescription.objects.create(
+                encounter=encounter,
+                drug=drug,
+                dose=row["dose"],
+                frequency=row["frequency"],
+                duration_days=row["duration_days"],
+                quantity=row["quantity"],
+                instructions=instructions,
+                prescribed_by=request.user,
+                created_by=request.user,
+            )
+            created.append(rx)
+            billed_any = _bill_prescription(rx) or billed_any
+            notify_role(
+                "PHARMACY",
+                exclude_actor=request.user,
+                kind="RX_READY",
+                level="INFO",
+                title=_("New prescription to dispense"),
+                body=f"{encounter.patient.full_name} · {drug.generic_name} {drug.strength} × {row['quantity']}",
+                url=f"/pharmacy/rx/{rx.pk}/dispense/",
+                entity_type="Prescription",
+                entity_id=rx.pk,
+            )
 
-        rx = Prescription.objects.create(
-            encounter=encounter,
-            drug=drug,
-            dose=dose,
-            frequency=frequency,
-            duration_days=duration_days,
-            quantity=quantity,
-            instructions=instructions,
-            prescribed_by=request.user,
-            created_by=request.user,
-        )
-        billed = _bill_prescription(rx)
-        if billed:
+        if billed_any:
             messages.success(
                 request,
-                _("Prescription added and billed at %(p)s TZS per unit (× %(q)s).") % {
-                    "p": drug.unit_price_tzs or 0, "q": quantity,
-                },
+                _("%(count)s prescription(s) added and billed.") % {"count": len(created)},
             )
         else:
-            messages.success(request, _("Prescription added."))
-        notify_role(
-            "PHARMACY",
-            exclude_actor=request.user,
-            kind="RX_READY",
-            level="INFO",
-            title=_("New prescription to dispense"),
-            body=f"{encounter.patient.full_name} · {drug.generic_name} {drug.strength} × {quantity}",
-            url=f"/pharmacy/rx/{rx.pk}/dispense/",
-            entity_type="Prescription",
-            entity_id=rx.pk,
-        )
+            messages.success(request, _("%(count)s prescription(s) added.") % {"count": len(created)})
         # Tell the front desk a new chargeable line was added so they can collect.
-        if billed:
+        if billed_any:
             try:
                 from apps.billing.models import Invoice
                 inv = Invoice.objects.filter(encounter=encounter).first()
                 if inv is not None and inv.balance_tzs > 0:
+                    summary = ", ".join(
+                        f"{rx.drug.generic_name} {rx.drug.strength} × {rx.quantity}"
+                        for rx in created
+                    )
                     notify_role(
                         ["RECEPTIONIST", "FINANCE"],
                         exclude_actor=request.user,
                         kind="PAYMENT_REQUIRED",
                         level="WARNING",
                         title=_("Drugs to collect payment for"),
-                        body=f"{encounter.patient.full_name} · {drug.generic_name} {drug.strength} × {quantity} · {inv.balance_tzs} TZS",
+                        body=f"{encounter.patient.full_name} · {summary} · {inv.balance_tzs} TZS",
                         url=f"/billing/invoices/{inv.pk}/",
                         entity_type="Invoice",
                         entity_id=inv.pk,

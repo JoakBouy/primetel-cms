@@ -448,6 +448,43 @@ def test_prescribe_auto_bills_invoice(client, clinician, receptionist, encounter
 
 
 @pytest.mark.django_db
+def test_prescribe_multiple_medicines_in_one_submit(client, clinician, receptionist, pharmacist, encounter, consult_invoice, drug):
+    ibuprofen = Drug.objects.create(
+        generic_name="Ibuprofen",
+        strength="200mg",
+        form="TABLET",
+        unit_price_tzs=Decimal("150"),
+    )
+    client.force_login(receptionist)
+    client.post(
+        reverse("billing:payment_record", args=[consult_invoice.pk]),
+        data={"method": "CASH", "amount_tzs": "5000"},
+    )
+    Notification.objects.all().delete()
+
+    client.force_login(clinician)
+    resp = client.post(
+        reverse("pharmacy:rx_prescribe", args=[encounter.pk]),
+        data={
+            "drug": [str(drug.pk), str(ibuprofen.pk)],
+            "dose": ["1 tab", "1 tab"],
+            "frequency": ["BID", "TID"],
+            "duration_days": ["5", "3"],
+            "quantity": ["10", "9"],
+            "instructions": ["After food", "With water"],
+        },
+    )
+    assert resp.status_code == 302
+    assert encounter.prescriptions.count() == 2
+    consult_invoice.refresh_from_db()
+    assert consult_invoice.lines.count() == 3
+    assert consult_invoice.total_tzs == Decimal("8350")
+    assert consult_invoice.balance_tzs == Decimal("3350")
+    assert Notification.objects.filter(recipient=pharmacist, kind="RX_READY").count() == 2
+    assert Notification.objects.filter(kind="PAYMENT_REQUIRED").exists()
+
+
+@pytest.mark.django_db
 def test_dispense_blocked_when_unpaid(client, pharmacist, clinician, encounter, consult_invoice, drug, stock_batch, receptionist):
     """After Rx is added, the invoice has new balance — pharmacy can't dispense
     until reception takes that payment too."""
@@ -549,6 +586,31 @@ def test_critical_lab_result_notifies_clinician_critical_level(
     assert notif is not None
     assert notif.kind == "LAB_CRITICAL"
     assert notif.level == "CRITICAL"
+    assert notif.url == f"/encounters/{encounter.pk}/"
+
+
+@pytest.mark.django_db
+def test_lab_result_detail_links_back_to_soap_and_prescribing(client, clinician, lab_tech, encounter):
+    test = LabTest.objects.create(code="HGB", name="Haemoglobin", specimen_type="BLOOD")
+    order = LabOrder.objects.create(
+        encounter=encounter,
+        test=test,
+        ordered_by=clinician,
+        status="RESULTED",
+        resulted_at=timezone.now(),
+    )
+    LabResult.objects.create(
+        lab_order=order,
+        value_numeric=Decimal("13.5"),
+        flag="NORMAL",
+        performed_by=lab_tech,
+    )
+
+    client.force_login(clinician)
+    resp = client.get(reverse("lab:order_detail", args=[order.pk]))
+    assert resp.status_code == 200
+    assert reverse("encounters:detail", args=[encounter.pk]).encode() in resp.content
+    assert reverse("pharmacy:rx_prescribe", args=[encounter.pk]).encode() in resp.content
 
 
 @pytest.mark.django_db

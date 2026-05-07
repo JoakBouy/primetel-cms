@@ -214,7 +214,7 @@ def lab_result_enter(request, pk):
         title=(_("CRITICAL lab result") if is_critical else _("Lab result ready")),
         body=f"{order.encounter.patient.full_name} · {order.test.code} {order.test.name}"
              + (f" · {parsed_numeric}" if parsed_numeric is not None else (f" · {value_text[:40]}" if value_text else "")),
-        url=f"/lab/orders/{order.pk}/",
+        url=f"/encounters/{order.encounter_id}/",
         entity_type="LabOrder",
         entity_id=order.pk,
     )

@@ -9,6 +9,12 @@
         <p class="text-sm text-slate-500">{% trans "Patient" %}: {{ order.encounter.patient.full_name }} · {{ order.get_status_display }}</p>
     </div>
     <div class="flex gap-2">
+        <a href="{% url 'encounters:detail' order.encounter.pk %}" class="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700" id="lab-open-encounter">{% trans "Open SOAP" %}</a>
+        {% if order.encounter.status != "FINALISED" %}
+        {% if user.is_superuser or user.role.code == "CLINICIAN" or user.role.code == "ADMIN" %}
+        <a href="{% url 'pharmacy:rx_prescribe' order.encounter.pk %}" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg hover:shadow-sm" id="lab-prescribe">{% trans "Prescribe" %}</a>
+        {% endif %}
+        {% endif %}
         <a href="{% url 'lab:print' order.pk %}" target="_blank" class="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-sm rounded-lg hover:shadow-sm" id="lab-print">{% trans "Print" %}</a>
         <a href="{% url 'lab:queue' %}" class="text-sm text-slate-500 hover:text-slate-700 self-center">{% trans "← Back" %}</a>
     </div>
