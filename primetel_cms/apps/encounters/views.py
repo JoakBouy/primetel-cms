@@ -57,6 +57,54 @@ def _ensure_editable(encounter):
         raise ValidationError(_("Encounter is finalised. Use Amend to reopen it."))
 
 
+def _consultation_paid(encounter) -> bool:
+    """True if the consultation invoice for this encounter is fully paid.
+
+    The clinical "hard gate": no SOAP/vitals/diagnosis/Rx/lab work is allowed
+    until the front desk has recorded the consultation payment. Encounters
+    without an invoice (legacy / manually created) are treated as paid so we
+    don't lock anyone out by accident.
+    """
+    from apps.billing.models import Invoice
+    inv = Invoice.objects.filter(encounter=encounter).first()
+    if inv is None:
+        return True
+    return inv.status in ("PAID", "WAIVED") or inv.balance_tzs <= 0
+
+
+def _ensure_paid(request, encounter):
+    """Raise (return False + flash) if the consultation hasn't been paid yet.
+
+    Returns True if clinical work can proceed.
+    """
+    if _consultation_paid(encounter):
+        return True
+    messages.error(
+        request,
+        _("Awaiting payment confirmation. The receptionist must record the consultation payment before clinical work can begin.")
+    )
+    return False
+
+
+def _notify_billing_for_new_invoice(invoice, actor):
+    """Tell the front desk a new consultation invoice needs to be paid."""
+    try:
+        from apps.core.notifications import notify_role
+        notify_role(
+            ["RECEPTIONIST", "FINANCE"],
+            exclude_actor=actor,
+            kind="PAYMENT_REQUIRED",
+            level="WARNING",
+            title=_("New consultation to collect"),
+            body=f"{invoice.patient.full_name} · {invoice.invoice_number} · {invoice.total_tzs} TZS",
+            url=f"/billing/invoices/{invoice.pk}/",
+            entity_type="Invoice",
+            entity_id=invoice.pk,
+        )
+    except Exception:
+        pass
+
+
 @requires_role("CLINICIAN", "ADMIN")
 def encounter_new(request):
     """Start a new encounter for a patient — or resume an open draft."""
@@ -86,7 +134,9 @@ def encounter_new(request):
         # Auto-charge the consultation as a draft invoice (5000 new / 3000 follow-up).
         try:
             from apps.billing.consultation import auto_charge
-            auto_charge(encounter, request.user)
+            inv = auto_charge(encounter, request.user)
+            if inv is not None:
+                _notify_billing_for_new_invoice(inv, request.user)
         except Exception:
             # Never block clinical work on a billing hiccup.
             pass
@@ -121,7 +171,9 @@ def encounter_new_mh(request):
         )
         try:
             from apps.billing.consultation import auto_charge
-            auto_charge(encounter, request.user)
+            inv = auto_charge(encounter, request.user)
+            if inv is not None:
+                _notify_billing_for_new_invoice(inv, request.user)
         except Exception:
             pass
         return redirect("encounters:detail", pk=encounter.pk)
@@ -156,6 +208,7 @@ def encounter_detail(request, pk):
     # Invoice for this encounter (created automatically on encounter open).
     from apps.billing.models import Invoice
     invoice = Invoice.objects.filter(encounter=encounter).first()
+    consultation_paid = _consultation_paid(encounter)
     return render(request, "encounters/detail.html", {
         "page_title": f"{_('Encounter')} — {encounter.patient.full_name}",
         "encounter": encounter,
@@ -165,6 +218,7 @@ def encounter_detail(request, pk):
         "prescriptions": encounter.prescriptions.all() if hasattr(encounter, 'prescriptions') else [],
         "lab_orders": encounter.lab_orders.all() if hasattr(encounter, 'lab_orders') else [],
         "invoice": invoice,
+        "consultation_paid": consultation_paid,
         "mh_assessment": mh_assessment,
         "phq9_q9_red_flag": (
             mh_assessment is not None
@@ -183,6 +237,8 @@ def encounter_save_draft(request, pk):
     encounter = _get_encounter_for_user(request.user, pk)
     if encounter.status == "FINALISED":
         return JsonResponse({"error": "Encounter is finalised"}, status=400)
+    if not _consultation_paid(encounter):
+        return JsonResponse({"error": "Awaiting payment confirmation."}, status=402)
     for field in ["chief_complaint", "history_of_presenting_illness", "subjective", "objective", "assessment", "plan"]:
         val = request.POST.get(field)
         if val is not None:
@@ -203,6 +259,8 @@ def encounter_add_vitals(request, pk):
         _ensure_editable(encounter)
     except Exception as e:
         messages.error(request, str(e))
+        return redirect("encounters:detail", pk=pk)
+    if not _ensure_paid(request, encounter):
         return redirect("encounters:detail", pk=pk)
     Vitals.objects.create(
         encounter=encounter, recorded_by=request.user, created_by=request.user,
@@ -229,6 +287,8 @@ def encounter_add_diagnosis(request, pk):
         _ensure_editable(encounter)
     except Exception as e:
         messages.error(request, str(e))
+        return redirect("encounters:detail", pk=pk)
+    if not _ensure_paid(request, encounter):
         return redirect("encounters:detail", pk=pk)
     Diagnosis.objects.create(
         encounter=encounter, created_by=request.user,

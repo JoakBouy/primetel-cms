@@ -51,11 +51,12 @@
                     {% else %}<span class="badge badge-completed">{% trans "OK" %}</span>{% endif %}
                 </td>
                 <td>
-                    <div x-data="{ showAdjust: false }">
+                    <div x-data="{ showAdjust: false }" class="flex flex-col gap-1">
+                        <a href="{% url 'pharmacy:stock_edit' b.pk %}" class="text-xs text-primary-600 hover:underline" id="btn-edit-batch-{{ b.pk }}">{% trans "Edit batch" %}</a>
                         <button @click="showAdjust = !showAdjust"
-                                class="text-xs text-primary-600 hover:underline"
+                                class="text-xs text-slate-500 hover:underline text-left"
                                 id="btn-adjust-{{ b.pk }}">
-                            {% trans "Adjust" %}
+                            {% trans "Adjust qty" %}
                         </button>
                         <form x-show="showAdjust" x-transition
                               method="post" action="{% url 'pharmacy:stock_adjust' b.pk %}"

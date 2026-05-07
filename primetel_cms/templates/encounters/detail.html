@@ -66,6 +66,32 @@
 {% endblock %}
 
 {% block content %}
+{% if not consultation_paid %}
+<div class="mb-5 rounded-2xl border-2 border-warning-300 bg-warning-50 p-4" id="payment-gate-banner" role="alert">
+    <div class="flex items-start gap-3">
+        <div class="shrink-0 w-9 h-9 rounded-xl bg-warning-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-warning-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-warning-800">{% trans "Awaiting payment confirmation" %}</p>
+            <p class="text-xs text-warning-700 mt-0.5">
+                {% trans "Clinical work is locked until the receptionist records the consultation payment. The clinician will be notified when payment is received." %}
+                {% if invoice %}
+                <span class="block mt-1 font-mono text-xs">
+                    {{ invoice.invoice_number }} · {% trans "Total" %}: {{ invoice.total_tzs|floatformat:0 }} TZS · {% trans "Balance" %}: <span class="font-bold">{{ invoice.balance_tzs|floatformat:0 }} TZS</span>
+                </span>
+                {% endif %}
+            </p>
+            {% if invoice %}
+            <a href="{% url 'billing:invoice_detail' invoice.pk %}" class="inline-block mt-2 text-xs font-medium text-warning-800 hover:underline" id="payment-gate-invoice-link">
+                {% trans "Open invoice" %} →
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <!-- ═══ LEFT: SOAP Note (2/3) ═══ -->
     <div class="xl:col-span-2 space-y-5">
@@ -222,7 +248,11 @@
             <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Prescriptions" %}</h3>
                 {% if encounter.status != "FINALISED" %}
+                {% if consultation_paid %}
                 <a href="{% url 'pharmacy:rx_prescribe' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-prescribe">+ {% trans "Prescribe" %}</a>
+                {% else %}
+                <span class="text-xs text-slate-400" title="{% trans 'Awaiting payment' %}">🔒 {% trans "Locked" %}</span>
+                {% endif %}
                 {% endif %}
             </div>
             <div class="p-5">
@@ -262,7 +292,11 @@
             <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Lab Orders" %}</h3>
                 {% if encounter.status != "FINALISED" %}
+                {% if consultation_paid %}
                 <a href="{% url 'lab:order_new' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-lab-order">+ {% trans "Order test" %}</a>
+                {% else %}
+                <span class="text-xs text-slate-400" title="{% trans 'Awaiting payment' %}">🔒 {% trans "Locked" %}</span>
+                {% endif %}
                 {% endif %}
             </div>
             <div class="p-5">

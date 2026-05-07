@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
 from apps.core.models import AuditLog
+from apps.core.notifications import notify_role, notify_user
 from apps.core.pdf import render_pdf
 from apps.patients.models import Patient
 
@@ -152,6 +153,38 @@ def payment_record(request, pk):
             created_by=request.user,
         )
         messages.success(request, _("Payment recorded."))
+        # Refresh status from DB after Payment.save() updates it.
+        invoice.refresh_from_db()
+        # If the payment fully clears a consultation invoice, ping the clinician
+        # so they know the patient can be seen now.
+        if invoice.encounter_id and invoice.status == "PAID":
+            enc = invoice.encounter
+            url = f"/encounters/{enc.pk}/"
+            patient_name = enc.patient.full_name if enc.patient_id else ""
+            if enc.clinician_id:
+                notify_user(
+                    enc.clinician,
+                    kind="PAYMENT_RECEIVED",
+                    level="SUCCESS",
+                    title=_("Patient paid — ready for consult"),
+                    body=f"{patient_name} · {invoice.invoice_number}",
+                    url=url,
+                    entity_type="Encounter",
+                    entity_id=enc.pk,
+                )
+            else:
+                # Fan out to all clinicians on duty if no specific clinician assigned.
+                notify_role(
+                    ["CLINICIAN", "NURSE"],
+                    exclude_actor=request.user,
+                    kind="PAYMENT_RECEIVED",
+                    level="SUCCESS",
+                    title=_("Patient paid — ready for consult"),
+                    body=f"{patient_name} · {invoice.invoice_number}",
+                    url=url,
+                    entity_type="Encounter",
+                    entity_id=enc.pk,
+                )
     except ValidationError as e:
         messages.error(request, str(e))
     return redirect("billing:invoice_detail", pk=pk)

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Edit batch" %}{% endblock %}
+
+{% block page_header %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-slate-800">{% trans "Edit batch" %}</h1>
+    <p class="text-sm text-slate-500 mt-0.5">{{ item.drug.generic_name }} {{ item.drug.strength }}</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-md bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Batch number" %} <span class="text-danger-500">*</span></label>
+            <input type="text" name="batch_number" required maxlength="50" value="{{ item.batch_number }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono" id="batch-no">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Expiry date" %} <span class="text-danger-500">*</span></label>
+            <input type="date" name="expiry_date" required value="{{ item.expiry_date|date:'Y-m-d' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="batch-expiry">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Quantity on hand" %} <span class="text-danger-500">*</span></label>
+            <input type="number" name="quantity_on_hand" min="0" required value="{{ item.quantity_on_hand }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="batch-qty">
+            <p class="text-[11px] text-slate-400 mt-1">{% trans "Any change is recorded as a stock movement for the audit trail." %}</p>
+        </div>
+        <div class="flex gap-3 pt-2">
+            <button class="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700" id="batch-save">{% trans "Save changes" %}</button>
+            <a href="{% url 'pharmacy:drug_detail' item.drug.pk %}" class="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 self-center">{% trans "Cancel" %}</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

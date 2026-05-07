@@ -1,0 +1,6 @@
+{% load i18n %}
+{% if unread_count %}
+<span class="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-danger-500 rounded-full ring-2 ring-white" id="bell-badge-count">
+    {% if unread_count > 9 %}9+{% else %}{{ unread_count }}{% endif %}
+</span>
+{% endif %}

@@ -3,15 +3,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Primetel CMS 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-04-28 10:00+0300\n"
-"PO-Revision-Date: 2026-04-28 10:00+0300\n"
-"Last-Translator: System <admin@primetel.co.tz>\n"
+"POT-Creation-Date: 2026-05-07 09:00+0300\n"
+"PO-Revision-Date: 2026-05-07 09:00+0300\n"
+"Last-Translator: Primetel <admin@primetel.co.tz>\n"
 "Language-Team: Swahili <sw@li.org>\n"
 "Language: sw\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+# ─── Top nav / sidebar ─────────────────────────────────────────
 msgid "Dashboard"
 msgstr "Dashibodi"
 
@@ -33,14 +34,36 @@ msgstr "Malipo"
 msgid "Reports"
 msgstr "Ripoti"
 
+msgid "Quick Actions"
+msgstr "Vitendo vya Haraka"
+
+msgid "Navigation"
+msgstr "Urambazaji"
+
 msgid "Register Patient"
 msgstr "Sajili Mgonjwa"
 
 msgid "Today's Queue"
 msgstr "Foleni ya Leo"
 
+msgid "Rx Queue"
+msgstr "Foleni ya Dawa"
+
+msgid "Lab Queue"
+msgstr "Foleni ya Maabara"
+
+msgid "Invoices"
+msgstr "Risiti"
+
+msgid "Admin Panel"
+msgstr "Paneli ya Msimamizi"
+
+# ─── Auth ──────────────────────────────────────────────────────
 msgid "Login"
 msgstr "Ingia"
+
+msgid "Logout"
+msgstr "Toka"
 
 msgid "Username"
 msgstr "Jina la Mtumiaji"
@@ -51,12 +74,28 @@ msgstr "Nenosiri"
 msgid "Sign In"
 msgstr "Ingia"
 
-msgid "Logout"
-msgstr "Toka"
+msgid "Sign in to your account to continue"
+msgstr "Ingia kwenye akaunti yako kuendelea"
 
 msgid "Welcome back"
 msgstr "Karibu tena"
 
+msgid "Back to Login"
+msgstr "Rudi Kuingia"
+
+msgid "Session Expired"
+msgstr "Kipindi Kimekwisha"
+
+msgid "Reload Page"
+msgstr "Pakia Tena"
+
+msgid "Your session security token has expired. This usually happens after being idle for a while. Please reload the page and try again."
+msgstr "Tokeni ya usalama ya kipindi imekwisha. Hii hutokea baada ya kutotumia kwa muda. Tafadhali pakia ukurasa tena na ujaribu tena."
+
+msgid "If this keeps happening, try clearing your browser cookies or using a different browser."
+msgstr "Ikiwa hili linaendelea, jaribu kufuta vidakuzi vya kivinjari chako au tumia kivinjari kingine."
+
+# ─── Dashboard ─────────────────────────────────────────────────
 msgid "Patients seen"
 msgstr "Wagonjwa waliohudumiwa"
 
@@ -68,3 +107,1075 @@ msgstr "Dawa zilizotolewa"
 
 msgid "Pending labs"
 msgstr "Vipimo vinavyosubiriwa"
+
+msgid "Patient Volume"
+msgstr "Idadi ya Wagonjwa"
+
+msgid "Top Diagnoses"
+msgstr "Magonjwa ya Juu"
+
+msgid "Last 7 days"
+msgstr "Siku 7 zilizopita"
+
+msgid "This week"
+msgstr "Wiki hii"
+
+msgid "Today"
+msgstr "Leo"
+
+msgid "Low Stock Items"
+msgstr "Bidhaa zenye Stoki Ndogo"
+
+msgid "Near-Expiry Items"
+msgstr "Bidhaa Zinazokaribia Kuisha"
+
+msgid "View All"
+msgstr "Ona Zote"
+
+msgid "No data yet"
+msgstr "Hakuna data bado"
+
+msgid "No low stock items"
+msgstr "Hakuna bidhaa zenye stoki ndogo"
+
+msgid "No near-expiry items"
+msgstr "Hakuna bidhaa zinazokaribia kuisha"
+
+msgid "No diagnoses recorded this week"
+msgstr "Hakuna magonjwa yaliyorekodiwa wiki hii"
+
+# ─── Patients ──────────────────────────────────────────────────
+msgid "Patient"
+msgstr "Mgonjwa"
+
+msgid "Patient No."
+msgstr "Nambari ya Mgonjwa"
+
+msgid "Patient Number"
+msgstr "Nambari ya Mgonjwa"
+
+msgid "Full Name"
+msgstr "Jina Kamili"
+
+msgid "Sex"
+msgstr "Jinsia"
+
+msgid "Age"
+msgstr "Umri"
+
+msgid "Age / Sex"
+msgstr "Umri / Jinsia"
+
+msgid "Phone"
+msgstr "Simu"
+
+msgid "District"
+msgstr "Wilaya"
+
+msgid "Region"
+msgstr "Mkoa"
+
+msgid "Village"
+msgstr "Kijiji"
+
+msgid "Ward"
+msgstr "Kata"
+
+msgid "Date of Birth"
+msgstr "Tarehe ya Kuzaliwa"
+
+msgid "Date of birth unknown — use estimated age only"
+msgstr "Tarehe ya kuzaliwa haijulikani — tumia umri wa kukadiria tu"
+
+msgid "Estimated Age (years)"
+msgstr "Umri wa Kukadiria (miaka)"
+
+msgid "National ID"
+msgstr "Kitambulisho cha Taifa"
+
+msgid "Photo"
+msgstr "Picha"
+
+msgid "Next of Kin"
+msgstr "Ndugu wa Karibu"
+
+msgid "Relationship"
+msgstr "Uhusiano"
+
+msgid "Identity"
+msgstr "Utambulisho"
+
+msgid "Contact Details"
+msgstr "Maelezo ya Mawasiliano"
+
+msgid "Preferences & Flags"
+msgstr "Mapendeleo na Bendera"
+
+msgid "Allergies"
+msgstr "Mzio"
+
+msgid "Allergy"
+msgstr "Mzio"
+
+msgid "Has Chronic Conditions"
+msgstr "Ana Magonjwa ya Kudumu"
+
+msgid "Chronic Conditions"
+msgstr "Magonjwa ya Kudumu"
+
+msgid "Diabetes, Hypertension, etc."
+msgstr "Kisukari, Shinikizo la Damu, n.k."
+
+msgid "Pregnant"
+msgstr "Mjamzito"
+
+msgid "Mjamzito"
+msgstr "Mjamzito"
+
+msgid "Mtoto"
+msgstr "Mtoto"
+
+msgid "Language Preference"
+msgstr "Lugha Unayopendelea"
+
+msgid "Search and manage patient records"
+msgstr "Tafuta na simamia rekodi za wagonjwa"
+
+msgid "Search by name, phone, or patient number…"
+msgstr "Tafuta kwa jina, simu, au nambari ya mgonjwa…"
+
+msgid "Create a new patient record"
+msgstr "Unda rekodi mpya ya mgonjwa"
+
+msgid "No patients found"
+msgstr "Hakuna wagonjwa waliopatikana"
+
+msgid "Try a different search term or register a new patient."
+msgstr "Jaribu neno tofauti au sajili mgonjwa mpya."
+
+msgid "Edit Patient"
+msgstr "Hariri Mgonjwa"
+
+msgid "Edit Record"
+msgstr "Hariri Rekodi"
+
+msgid "Chart"
+msgstr "Chati"
+
+msgid "View Chart"
+msgstr "Ona Chati"
+
+msgid "Clinical Timeline"
+msgstr "Ratiba ya Kliniki"
+
+msgid "This Patient"
+msgstr "Mgonjwa Huyu"
+
+msgid "Flags"
+msgstr "Bendera"
+
+msgid "Anza Consult"
+msgstr "Anza Konsalti"
+
+msgid "Weka Miadi"
+msgstr "Weka Miadi"
+
+msgid "Tazama Risiti"
+msgstr "Tazama Risiti"
+
+# ─── Appointments ──────────────────────────────────────────────
+msgid "Walk-In"
+msgstr "Walk-In"
+
+msgid "Walk-In / Book"
+msgstr "Walk-In / Weka"
+
+msgid "Walk-In / Book Appointment"
+msgstr "Walk-In / Weka Miadi"
+
+msgid "New Appointment"
+msgstr "Miadi Mpya"
+
+msgid "Create Appointment"
+msgstr "Unda Miadi"
+
+msgid "Search a patient, then choose walk-in or schedule."
+msgstr "Tafuta mgonjwa, kisha chagua walk-in au ratiba."
+
+msgid "Check in immediately, scheduled time = now"
+msgstr "Andikisha mara moja, muda uliopangwa = sasa"
+
+msgid "Scheduled Time"
+msgstr "Muda Uliopangwa"
+
+msgid "Any clinician"
+msgstr "Daktari yeyote"
+
+msgid "Clinician"
+msgstr "Daktari"
+
+msgid "General (15 min)"
+msgstr "Kawaida (dakika 15)"
+
+msgid "Type"
+msgstr "Aina"
+
+msgid "Status"
+msgstr "Hali"
+
+msgid "Time"
+msgstr "Muda"
+
+msgid "Waiting"
+msgstr "Anasubiri"
+
+msgid "Checked In"
+msgstr "Ameandikishwa"
+
+msgid "In Consult"
+msgstr "Kwenye Konsalti"
+
+msgid "Completed"
+msgstr "Imekamilika"
+
+msgid "Check In"
+msgstr "Andikisha"
+
+msgid "Complete"
+msgstr "Kamilisha"
+
+msgid "Start Consult"
+msgstr "Anza Konsalti"
+
+msgid "Start Encounter"
+msgstr "Anza Mahojiano"
+
+msgid "Start First Consultation"
+msgstr "Anza Konsalti ya Kwanza"
+
+msgid "No patients in the queue"
+msgstr "Hakuna wagonjwa kwenye foleni"
+
+msgid "Add a walk-in or scheduled appointment to get started."
+msgstr "Ongeza walk-in au miadi iliyopangwa ili kuanza."
+
+# ─── Encounters / SOAP ─────────────────────────────────────────
+msgid "Encounter"
+msgstr "Mahojiano"
+
+msgid "Encounter Type"
+msgstr "Aina ya Mahojiano"
+
+msgid "New Encounter"
+msgstr "Mahojiano Mapya"
+
+msgid "New Mental Health Encounter"
+msgstr "Mahojiano Mapya ya Afya ya Akili"
+
+msgid "General"
+msgstr "Kawaida"
+
+msgid "Follow Up"
+msgstr "Ufuatiliaji"
+
+msgid "Antenatal"
+msgstr "Kabla ya Kuzaa"
+
+msgid "Pediatric"
+msgstr "Watoto"
+
+msgid "Chief Complaint"
+msgstr "Lalamiko Kuu"
+
+msgid "SOAP Note"
+msgstr "Ripoti ya SOAP"
+
+msgid "Subjective"
+msgstr "Mgonjwa anasema"
+
+msgid "Objective"
+msgstr "Daktari ameona"
+
+msgid "Assessment"
+msgstr "Tathmini"
+
+msgid "Plan"
+msgstr "Mpango"
+
+msgid "Vitals"
+msgstr "Alama Muhimu"
+
+msgid "Record Vitals"
+msgstr "Rekodi Alama"
+
+msgid "Save Vitals"
+msgstr "Hifadhi Alama"
+
+msgid "No vitals recorded"
+msgstr "Hakuna alama zilizorekodiwa"
+
+msgid "Delete this vitals reading?"
+msgstr "Futa kipimo hiki cha alama?"
+
+msgid "Diagnoses"
+msgstr "Magonjwa Yaliyobainishwa"
+
+msgid "Add Diagnosis"
+msgstr "Ongeza Ugonjwa"
+
+msgid "Save Diagnosis"
+msgstr "Hifadhi Ugonjwa"
+
+msgid "No diagnoses"
+msgstr "Hakuna magonjwa"
+
+msgid "Delete this diagnosis?"
+msgstr "Futa ugonjwa huu?"
+
+msgid "Primary"
+msgstr "Msingi"
+
+msgid "Finalise"
+msgstr "Funga"
+
+msgid "Finalise this encounter? This will lock the SOAP note."
+msgstr "Funga mahojiano haya? Hii italinda ripoti ya SOAP."
+
+msgid "Amend"
+msgstr "Rekebisha"
+
+msgid "Reason for amendment"
+msgstr "Sababu ya kurekebisha"
+
+msgid "Required. The original record stays in history; your reason is logged."
+msgstr "Inahitajika. Rekodi ya asili inabaki kwenye historia; sababu yako imeandikwa."
+
+msgid "Reopen for amendment"
+msgstr "Fungua tena kwa marekebisho"
+
+msgid "Open draft encounter"
+msgstr "Mahojiano ya rasimu"
+
+msgid "Resume"
+msgstr "Endelea"
+
+msgid "started"
+msgstr "ilianza"
+
+msgid "ago"
+msgstr "iliyopita"
+
+msgid "No clinical events recorded yet."
+msgstr "Hakuna matukio ya kliniki yaliyorekodiwa bado."
+
+msgid "No encounters recorded."
+msgstr "Hakuna mahojiano yaliyorekodiwa."
+
+# ─── Pharmacy ──────────────────────────────────────────────────
+msgid "Drug"
+msgstr "Dawa"
+
+msgid "Drug Formulary"
+msgstr "Orodha ya Dawa"
+
+msgid "Generic name"
+msgstr "Jina la jumla"
+
+msgid "Brand"
+msgstr "Chapa"
+
+msgid "Brand name"
+msgstr "Jina la chapa"
+
+msgid "Strength"
+msgstr "Nguvu"
+
+msgid "Form"
+msgstr "Aina"
+
+msgid "Pack size"
+msgstr "Ukubwa wa pakiti"
+
+msgid "Add drug"
+msgstr "Ongeza dawa"
+
+msgid "Add a drug to the formulary."
+msgstr "Ongeza dawa kwenye orodha."
+
+msgid "Add first drug"
+msgstr "Ongeza dawa ya kwanza"
+
+msgid "Add your first drug to get started."
+msgstr "Ongeza dawa yako ya kwanza ili kuanza."
+
+msgid "Edit Drug"
+msgstr "Hariri Dawa"
+
+msgid "Manage drugs"
+msgstr "Simamia dawa"
+
+msgid "Active (visible to clinicians when prescribing)"
+msgstr "Inafanya kazi (inaonekana kwa madaktari wakati wa kuandika dawa)"
+
+msgid "Deactivate this drug? It will no longer appear in prescriptions."
+msgstr "Zima dawa hii? Haitaonekana tena kwenye dawa."
+
+msgid "Drug appears in the dashboard low-stock list when total stock drops to or below this number."
+msgstr "Dawa inaonekana kwenye orodha ya stoki ndogo wakati stoki yote inashuka hadi au chini ya nambari hii."
+
+msgid "Low-stock at"
+msgstr "Stoki ndogo"
+
+msgid "Low-stock threshold"
+msgstr "Kiwango cha stoki ndogo"
+
+msgid "Low Stock"
+msgstr "Stoki Ndogo"
+
+msgid "Total stock"
+msgstr "Stoki yote"
+
+msgid "Total Stock"
+msgstr "Stoki Yote"
+
+msgid "Stock Management"
+msgstr "Usimamizi wa Stoki"
+
+msgid "Receive"
+msgstr "Pokea"
+
+msgid "Receive Stock"
+msgstr "Pokea Stoki"
+
+msgid "Receive stock"
+msgstr "Pokea stoki"
+
+msgid "Receive first batch"
+msgstr "Pokea kundi la kwanza"
+
+msgid "Quantity received"
+msgstr "Idadi iliyopokelewa"
+
+msgid "Batch"
+msgstr "Kundi"
+
+msgid "Batch number"
+msgstr "Nambari ya kundi"
+
+msgid "Expiry"
+msgstr "Mwisho"
+
+msgid "Expiry date"
+msgstr "Tarehe ya mwisho"
+
+msgid "Expired"
+msgstr "Imeisha"
+
+msgid "Near Expiry"
+msgstr "Karibu Kuisha"
+
+msgid "exp"
+msgstr "mwisho"
+
+msgid "Adjust"
+msgstr "Rekebisha"
+
+msgid "Adjust Stock"
+msgstr "Rekebisha Stoki"
+
+msgid "Adjust stock quantity for this batch?"
+msgstr "Rekebisha idadi ya stoki ya kundi hili?"
+
+msgid "Qty"
+msgstr "Idadi"
+
+msgid "Qty on Hand"
+msgstr "Idadi Iliyopo"
+
+msgid "on hand"
+msgstr "iliyopo"
+
+msgid "Quantity"
+msgstr "Idadi"
+
+msgid "Quantity to dispense"
+msgstr "Idadi ya kutoa"
+
+msgid "Prescribe"
+msgstr "Andika Dawa"
+
+msgid "Prescription"
+msgstr "Dawa"
+
+msgid "Prescription Queue"
+msgstr "Foleni ya Dawa"
+
+msgid "Prescriptions"
+msgstr "Dawa"
+
+msgid "Add prescription"
+msgstr "Ongeza dawa"
+
+msgid "Save changes"
+msgstr "Hifadhi mabadiliko"
+
+msgid "Dose"
+msgstr "Kipimo"
+
+msgid "Frequency"
+msgstr "Mara ngapi"
+
+msgid "Duration"
+msgstr "Muda"
+
+msgid "Duration (days)"
+msgstr "Muda (siku)"
+
+msgid "Days"
+msgstr "Siku"
+
+msgid "days"
+msgstr "siku"
+
+msgid "Instructions"
+msgstr "Maelekezo"
+
+msgid "Instructions (optional)"
+msgstr "Maelekezo (hiari)"
+
+msgid "Dispense"
+msgstr "Toa"
+
+msgid "Dispense form"
+msgstr "Fomu ya kutoa"
+
+msgid "Patient counselled on use, side effects, and storage"
+msgstr "Mgonjwa ameelezwa kuhusu matumizi, madhara, na uhifadhi"
+
+msgid "Patient-reported allergies"
+msgstr "Mzio walioripoti wagonjwa"
+
+msgid "ALLERGY ALERT"
+msgstr "TAHADHARI YA MZIO"
+
+msgid "I acknowledge the allergy alert and accept clinical responsibility for proceeding."
+msgstr "Ninakubali tahadhari ya mzio na kuchukua jukumu la kliniki la kuendelea."
+
+msgid "Override reason (required)"
+msgstr "Sababu ya kupuuza (inahitajika)"
+
+msgid "To proceed, tick the override box below and document a clinical reason. The override will be recorded in the prescription."
+msgstr "Ili kuendelea, weka alama kwenye sanduku la kupuuza na andika sababu ya kliniki. Kupuuza kutarekodiwa kwenye dawa."
+
+msgid "Prescriber"
+msgstr "Mwenye kuandika"
+
+msgid "Prescribed by"
+msgstr "Imeandikwa na"
+
+msgid "No prescriptions"
+msgstr "Hakuna dawa"
+
+msgid "No prescriptions recorded."
+msgstr "Hakuna dawa zilizorekodiwa."
+
+msgid "No prescriptions awaiting dispensing."
+msgstr "Hakuna dawa zinazosubiri kutolewa."
+
+msgid "prescriptions awaiting dispensing"
+msgstr "dawa zinazosubiri kutolewa"
+
+msgid "No drugs in the formulary yet."
+msgstr "Hakuna dawa kwenye orodha bado."
+
+msgid "Formulary is empty"
+msgstr "Orodha ni tupu"
+
+msgid "drugs in formulary"
+msgstr "dawa kwenye orodha"
+
+msgid "active drugs"
+msgstr "dawa zinazofanya kazi"
+
+msgid "No stock items for this drug."
+msgstr "Hakuna stoki ya dawa hii."
+
+msgid "No stock available for this drug."
+msgstr "Hakuna stoki ya dawa hii."
+
+msgid "Cancel this prescription?"
+msgstr "Ghairi dawa hii?"
+
+msgid "Void"
+msgstr "Batilisha"
+
+msgid "Void this prescription and return stock?"
+msgstr "Batilisha dawa hii na rejesha stoki?"
+
+msgid "Voiding will return the dispensed quantity to stock and mark the prescription cancelled. The original dispense record stays in history."
+msgstr "Kubatilisha kutarejesha idadi iliyotolewa kwenye stoki na kuonyesha dawa imeghairiwa. Rekodi ya asili ya kutoa inabaki kwenye historia."
+
+msgid "Print Rx slip"
+msgstr "Chapisha kipande cha dawa"
+
+msgid "Unit price (TZS)"
+msgstr "Bei kwa kila kipande (TZS)"
+
+msgid "optional"
+msgstr "hiari"
+
+msgid "Signature"
+msgstr "Saini"
+
+# ─── Lab ───────────────────────────────────────────────────────
+msgid "Lab Test Catalogue"
+msgstr "Orodha ya Vipimo vya Maabara"
+
+msgid "Lab Orders"
+msgstr "Maagizo ya Maabara"
+
+msgid "Lab Results"
+msgstr "Matokeo ya Maabara"
+
+msgid "Lab role required"
+msgstr "Jukumu la maabara linahitajika"
+
+msgid "Test"
+msgstr "Kipimo"
+
+msgid "tests in catalogue"
+msgstr "vipimo kwenye orodha"
+
+msgid "Add test"
+msgstr "Ongeza kipimo"
+
+msgid "Add your first lab test to get started."
+msgstr "Ongeza kipimo chako cha kwanza ili kuanza."
+
+msgid "Catalogue is empty"
+msgstr "Orodha ni tupu"
+
+msgid "Define a new test for the lab catalogue."
+msgstr "Tengeneza kipimo kipya kwenye orodha ya maabara."
+
+msgid "Manage tests"
+msgstr "Simamia vipimo"
+
+msgid "Active (available to clinicians when ordering)"
+msgstr "Inafanya kazi (inapatikana kwa madaktari wakati wa kuagiza)"
+
+msgid "Active"
+msgstr "Inafanya kazi"
+
+msgid "Code"
+msgstr "Kodi"
+
+msgid "Name"
+msgstr "Jina"
+
+msgid "Specimen"
+msgstr "Sampuli"
+
+msgid "Specimen type"
+msgstr "Aina ya sampuli"
+
+msgid "Blood"
+msgstr "Damu"
+
+msgid "Urine"
+msgstr "Mkojo"
+
+msgid "Stool"
+msgstr "Kinyesi"
+
+msgid "Swab"
+msgstr "Swabu"
+
+msgid "Other"
+msgstr "Nyingine"
+
+msgid "Reference range"
+msgstr "Kiwango cha rejeleo"
+
+msgid "Reference min"
+msgstr "Kima cha chini"
+
+msgid "Reference max"
+msgstr "Kima cha juu"
+
+msgid "Range"
+msgstr "Kiwango"
+
+msgid "Unit"
+msgstr "Kipimo"
+
+msgid "Unit / text result"
+msgstr "Kipimo / matokeo ya maandishi"
+
+msgid "Numeric value"
+msgstr "Thamani ya nambari"
+
+msgid "qualitative"
+msgstr "ubora"
+
+msgid "Send out"
+msgstr "Tuma nje"
+
+msgid "Send-out test (performed at an external lab)"
+msgstr "Kipimo cha kutuma nje (kinafanyika maabara ya nje)"
+
+msgid "Order Lab Test"
+msgstr "Agiza Kipimo cha Maabara"
+
+msgid "Order test"
+msgstr "Agiza kipimo"
+
+msgid "Order details"
+msgstr "Maelezo ya agizo"
+
+msgid "Order cancelled"
+msgstr "Agizo limeghairiwa"
+
+msgid "Ordered"
+msgstr "Imeagizwa"
+
+msgid "Ordered at"
+msgstr "Imeagizwa saa"
+
+msgid "Ordered by"
+msgstr "Imeagizwa na"
+
+msgid "Awaiting collection"
+msgstr "Inasubiri kuchukuliwa"
+
+msgid "Sample collected"
+msgstr "Sampuli imechukuliwa"
+
+msgid "Sample collected — enter result"
+msgstr "Sampuli imechukuliwa — ingiza matokeo"
+
+msgid "Mark sample collected"
+msgstr "Weka alama sampuli imechukuliwa"
+
+msgid "Mark collected"
+msgstr "Weka alama imechukuliwa"
+
+msgid "Collected"
+msgstr "Imechukuliwa"
+
+msgid "Resulted"
+msgstr "Imewekewa Matokeo"
+
+msgid "Reviewed"
+msgstr "Imepitiwa"
+
+msgid "Reviewed by clinician"
+msgstr "Imepitiwa na daktari"
+
+msgid "Mark reviewed"
+msgstr "Weka alama imepitiwa"
+
+msgid "Enter result"
+msgstr "Ingiza matokeo"
+
+msgid "Update result"
+msgstr "Sasisha matokeo"
+
+msgid "Save result"
+msgstr "Hifadhi matokeo"
+
+msgid "Current result"
+msgstr "Matokeo ya sasa"
+
+msgid "Result"
+msgstr "Matokeo"
+
+msgid "Performed by"
+msgstr "Imefanywa na"
+
+msgid "Visible on the clinician encounter dashboard"
+msgstr "Inaonekana kwenye dashibodi ya daktari"
+
+msgid "Flag"
+msgstr "Bendera"
+
+msgid "Stage"
+msgstr "Hatua"
+
+msgid "Workflow"
+msgstr "Mchakato"
+
+msgid "pending"
+msgstr "inasubiri"
+
+msgid "pending orders"
+msgstr "maagizo yanayosubiri"
+
+msgid "processed tests"
+msgstr "vipimo vilivyotekelezwa"
+
+msgid "Pending"
+msgstr "Inasubiri"
+
+msgid "Pending queue"
+msgstr "Foleni inayosubiri"
+
+msgid "Results"
+msgstr "Matokeo"
+
+msgid "Refresh"
+msgstr "Pakia upya"
+
+msgid "Open"
+msgstr "Fungua"
+
+msgid "Process"
+msgstr "Tekeleza"
+
+msgid "Cancel order"
+msgstr "Ghairi agizo"
+
+msgid "Reason for cancelling (required)"
+msgstr "Sababu ya kughairi (inahitajika)"
+
+msgid "Cancel this order? This cannot be undone."
+msgstr "Ghairi agizo hili? Hili haliwezi kubadilishwa."
+
+msgid "Confirm cancel"
+msgstr "Thibitisha kughairi"
+
+msgid "Keep order"
+msgstr "Weka agizo"
+
+msgid "Amend result"
+msgstr "Rekebisha matokeo"
+
+msgid "Reason for amending the reviewed result (required)"
+msgstr "Sababu ya kurekebisha matokeo yaliyopitiwa (inahitajika)"
+
+msgid "The order will reopen to RESULTED so the value can be corrected. Previous values stay in history."
+msgstr "Agizo litarudi kuwa RESULTED ili thamani iweze kurekebishwa. Thamani za awali zinabaki kwenye historia."
+
+msgid "Reopen for correction"
+msgstr "Fungua tena kwa marekebisho"
+
+msgid "Reopen this reviewed result for correction?"
+msgstr "Fungua tena matokeo haya yaliyopitiwa kwa marekebisho?"
+
+msgid "Print"
+msgstr "Chapisha"
+
+msgid "Queue is clear"
+msgstr "Foleni iko wazi"
+
+msgid "No pending lab orders."
+msgstr "Hakuna maagizo ya maabara yanayosubiri."
+
+msgid "No lab orders"
+msgstr "Hakuna maagizo ya maabara"
+
+msgid "No lab orders recorded."
+msgstr "Hakuna maagizo ya maabara yaliyorekodiwa."
+
+msgid "No results yet"
+msgstr "Hakuna matokeo bado"
+
+msgid "Processed tests will appear here once results are entered."
+msgstr "Vipimo vilivyotekelezwa vitaonekana hapa baada ya matokeo kuingizwa."
+
+# ─── Billing ───────────────────────────────────────────────────
+msgid "Invoice"
+msgstr "Risiti"
+
+msgid "New Invoice"
+msgstr "Risiti Mpya"
+
+msgid "Issue invoice"
+msgstr "Toa risiti"
+
+msgid "Issued"
+msgstr "Imetolewa"
+
+msgid "Issued by"
+msgstr "Imetolewa na"
+
+msgid "Open invoice"
+msgstr "Fungua risiti"
+
+msgid "Manage patient invoices and payments"
+msgstr "Simamia risiti na malipo ya wagonjwa"
+
+msgid "No invoices found."
+msgstr "Hakuna risiti zilizopatikana."
+
+msgid "No invoices recorded."
+msgstr "Hakuna risiti zilizorekodiwa."
+
+msgid "Line Items"
+msgstr "Vipengele"
+
+msgid "Add line"
+msgstr "Ongeza kipengele"
+
+msgid "Description"
+msgstr "Maelezo"
+
+msgid "Custom item…"
+msgstr "Kipengele maalum…"
+
+msgid "No lines yet"
+msgstr "Hakuna vipengele bado"
+
+msgid "Subtotal"
+msgstr "Jumla ndogo"
+
+msgid "Discount"
+msgstr "Punguzo"
+
+msgid "Total"
+msgstr "Jumla"
+
+msgid "Unit Price"
+msgstr "Bei kwa kipande"
+
+msgid "Payment Summary"
+msgstr "Muhtasari wa Malipo"
+
+msgid "Payments"
+msgstr "Malipo"
+
+msgid "Record payment"
+msgstr "Rekodi malipo"
+
+msgid "Method"
+msgstr "Njia"
+
+msgid "Cash"
+msgstr "Pesa Taslimu"
+
+msgid "Card"
+msgstr "Kadi"
+
+msgid "Amount"
+msgstr "Kiasi"
+
+msgid "Reference"
+msgstr "Rejeleo"
+
+msgid "Paid"
+msgstr "Imelipwa"
+
+msgid "Partial"
+msgstr "Sehemu"
+
+msgid "Balance"
+msgstr "Salio"
+
+msgid "Receipt"
+msgstr "Risiti"
+
+msgid "Print receipt"
+msgstr "Chapisha risiti"
+
+msgid "Remove"
+msgstr "Ondoa"
+
+msgid "Remove this line?"
+msgstr "Ondoa kipengele hiki?"
+
+msgid "Confirm void"
+msgstr "Thibitisha kubatilisha"
+
+msgid "Void this payment? A reversing entry will be created."
+msgstr "Batilisha malipo haya? Kuingiza kinyume kutaundwa."
+
+msgid "When"
+msgstr "Lini"
+
+msgid "Date"
+msgstr "Tarehe"
+
+msgid "Notes"
+msgstr "Vidokezo"
+
+# ─── Common controls ──────────────────────────────────────────
+msgid "Save"
+msgstr "Hifadhi"
+
+msgid "Saved"
+msgstr "Imehifadhiwa"
+
+msgid "Cancel"
+msgstr "Ghairi"
+
+msgid "Cancelled"
+msgstr "Imeghairiwa"
+
+msgid "Delete"
+msgstr "Futa"
+
+msgid "Edit"
+msgstr "Hariri"
+
+msgid "Create"
+msgstr "Unda"
+
+msgid "Change"
+msgstr "Badilisha"
+
+msgid "Reactivate"
+msgstr "Wezesha tena"
+
+msgid "Deactivate"
+msgstr "Zima"
+
+msgid "Draft"
+msgstr "Rasimu"
+
+msgid "Yes"
+msgstr "Ndiyo"
+
+msgid "No"
+msgstr "Hapana"
+
+msgid "OK"
+msgstr "Sawa"
+
+msgid "All"
+msgstr "Zote"
+
+msgid "Select…"
+msgstr "Chagua…"
+
+msgid "Actions"
+msgstr "Vitendo"
+
+msgid "Please fix the errors below."
+msgstr "Tafadhali rekebisha makosa hapa chini."
+
+msgid "patients"
+msgstr "wagonjwa"
+
+msgid "← Back"
+msgstr "← Rudi"
+
+msgid "← Back to queue"
+msgstr "← Rudi kwenye foleni"
+
+msgid "← Stock view"
+msgstr "← Tazama stoki"
+
+msgid "PHQ-9 self-harm risk flag"
+msgstr "Bendera ya hatari ya kujidhuru ya PHQ-9"
+
+msgid "Question 9 score is non-zero. Per WHO mhGAP, immediate clinical review for suicide/self-harm risk is indicated."
+msgstr "Alama ya swali la 9 si sifuri. Kwa mujibu wa WHO mhGAP, ukaguzi wa kliniki wa haraka kuhusu hatari ya kujiua/kujidhuru unahitajika."
+
+msgid "No matches. Try another name, phone, or patient number."
+msgstr "Hakuna inayolingana. Jaribu jina, simu, au nambari nyingine."
+
+msgid "No documents uploaded."
+msgstr "Hakuna nyaraka zilizopakiwa."
+
+msgid "Price (TZS)"
+msgstr "Bei (TZS)"

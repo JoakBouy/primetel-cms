@@ -83,30 +83,40 @@
         {% endif %}
         <div class="flex flex-wrap items-center gap-2">
             {% if order.status == "ORDERED" %}
-            <form method="post" action="{% url 'lab:collect' order.pk %}">
-                {% csrf_token %}
-                <button class="px-3 py-1.5 bg-warning-500 text-white text-sm rounded-lg" id="lab-collect">{% trans "Mark sample collected" %}</button>
-            </form>
+                {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
+                <form method="post" action="{% url 'lab:collect' order.pk %}">
+                    {% csrf_token %}
+                    <button class="px-3 py-1.5 bg-warning-500 text-white text-sm rounded-lg" id="lab-collect">{% trans "Mark sample collected" %}</button>
+                </form>
+                {% else %}
+                <span class="px-3 py-1.5 bg-warning-50 text-warning-700 text-sm rounded-lg">{% trans "Awaiting collection" %}</span>
+                {% endif %}
             {% elif order.status == "COLLECTED" %}
             <span class="px-3 py-1.5 bg-success-50 text-success-700 text-sm rounded-lg" id="lab-collected-state">{% trans "Sample collected" %}</span>
             {% endif %}
             {% if order.status == "RESULTED" %}
-            <form method="post" action="{% url 'lab:review' order.pk %}">
-                {% csrf_token %}
-                <button class="px-3 py-1.5 bg-success-500 text-white text-sm rounded-lg" id="lab-review">{% trans "Mark reviewed" %}</button>
-            </form>
+                {% if user.is_superuser or user.role.code == "CLINICIAN" or user.role.code == "ADMIN" %}
+                <form method="post" action="{% url 'lab:review' order.pk %}">
+                    {% csrf_token %}
+                    <button class="px-3 py-1.5 bg-success-500 text-white text-sm rounded-lg" id="lab-review">{% trans "Mark reviewed" %}</button>
+                </form>
+                {% endif %}
             {% endif %}
             {% if order.status == "REVIEWED" %}
             <span class="text-success-600 text-sm">{% trans "Reviewed by clinician" %} · {{ order.reviewed_at|date:"d/m/Y H:i" }}</span>
-            <button type="button" @click="showAmend = !showAmend" class="ml-auto text-xs text-warning-600 hover:underline" id="lab-amend-toggle">{% trans "Amend result" %}</button>
+                {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "CLINICIAN" or user.role.code == "ADMIN" %}
+                <button type="button" @click="showAmend = !showAmend" class="ml-auto text-xs text-warning-600 hover:underline" id="lab-amend-toggle">{% trans "Amend result" %}</button>
+                {% endif %}
             {% endif %}
             {% if order.status == "CANCELLED" %}
             <span class="text-danger-600 text-sm">{% trans "Cancelled" %}{% if order.external_reference %} · {{ order.external_reference }}{% endif %}</span>
             {% endif %}
             {% if order.status == "ORDERED" or order.status == "COLLECTED" %}
-            <button type="button" @click="showCancel = !showCancel" class="ml-auto text-xs text-danger-600 hover:underline" id="lab-cancel-toggle">
-                {% trans "Cancel order" %}
-            </button>
+                {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "CLINICIAN" or user.role.code == "ADMIN" %}
+                <button type="button" @click="showCancel = !showCancel" class="ml-auto text-xs text-danger-600 hover:underline" id="lab-cancel-toggle">
+                    {% trans "Cancel order" %}
+                </button>
+                {% endif %}
             {% endif %}
         </div>
         {% if order.status == "REVIEWED" %}
@@ -135,6 +145,7 @@
     </div>
 
     {% if order.status == "ORDERED" or order.status == "COLLECTED" or order.status == "RESULTED" %}
+    {% if user.is_superuser or user.role.code == "LAB" or user.role.code == "ADMIN" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
         <h2 class="text-sm font-semibold text-slate-700 mb-3">{% if result %}{% trans "Update result" %}{% else %}{% trans "Enter result" %}{% endif %}</h2>
         <form method="post" action="{% url 'lab:result_enter' order.pk %}" class="space-y-3">
@@ -158,6 +169,7 @@
             </button>
         </form>
     </div>
+    {% endif %}
     {% endif %}
 
     {% if result %}

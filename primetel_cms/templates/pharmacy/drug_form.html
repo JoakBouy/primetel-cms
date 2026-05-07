@@ -63,6 +63,31 @@
             <span>{% trans "Active (visible to clinicians when prescribing)" %}</span>
         </label>
 
+        {% if not drug %}
+        {# First-batch section: optional, but if any field is filled, all three are required server-side. #}
+        <div class="border-t border-slate-100 pt-4 mt-4" x-data="{ withBatch: {% if form_data.batch_number %}true{% else %}false{% endif %} }">
+            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" x-model="withBatch" id="drug-with-batch">
+                <span>{% trans "Register first stock batch now (optional)" %}</span>
+            </label>
+            <p class="text-[11px] text-slate-400 mt-1 ml-6">{% trans "Fill these in to record the first batch on hand. You can also add it later from the drug detail page." %}</p>
+            <div x-show="withBatch" x-transition class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Batch number" %}</label>
+                    <input type="text" name="batch_number" maxlength="50" value="{{ form_data.batch_number|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono" id="drug-batch" placeholder="e.g. AMX-2026-04">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Expiry date" %}</label>
+                    <input type="date" name="expiry_date" value="{{ form_data.expiry_date|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="drug-expiry">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Quantity on hand" %}</label>
+                    <input type="number" name="quantity_on_hand" min="1" value="{{ form_data.quantity_on_hand|default:'' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="drug-qty">
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="flex gap-3 pt-2">
             <button type="submit" class="px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700" id="drug-save">
                 {% if drug %}{% trans "Save changes" %}{% else %}{% trans "Add drug" %}{% endif %}

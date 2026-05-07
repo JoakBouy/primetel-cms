@@ -1,6 +1,6 @@
 """Reports views."""
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Sum, Count, F, Q
@@ -13,9 +13,27 @@ from apps.lab.models import LabOrder
 
 from datetime import timedelta
 
+ROLE_HOME = {
+    "RECEPTIONIST": "/appointments/queue/",
+    "NURSE": "/appointments/queue/",
+    "PHARMACY": "/pharmacy/queue/",
+    "LAB": "/lab/queue/",
+    "FINANCE": "/billing/invoices/",
+}
+
+
 @login_required
 def dashboard(request):
-    """Role-scoped dashboard — the main landing page after login."""
+    """Role-scoped dashboard — the main landing page after login.
+
+    Single-purpose roles (LAB, PHARMACY, RECEPTIONIST, NURSE, FINANCE) land
+    directly on their work queue. Clinicians, counsellors, and admins see the
+    full clinical dashboard.
+    """
+    role_code = getattr(getattr(request.user, "role", None), "code", None)
+    if role_code in ROLE_HOME and not request.user.is_superuser:
+        return redirect(ROLE_HOME[role_code])
+
     today = timezone.now().date()
     start_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
     seven_days_ago = start_of_day - timedelta(days=6)

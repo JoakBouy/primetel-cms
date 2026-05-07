@@ -100,6 +100,66 @@ class ConfigSetting(models.Model):
             return default
 
 
+class Notification(models.Model):
+    """In-app notification. One row per recipient — fan-out happens at write time
+    so unread counts and per-user state stay simple.
+
+    `kind` is a stable string the UI uses to pick an icon/colour. Keep the list
+    short and meaningful; new kinds should be added intentionally.
+    """
+
+    KIND_CHOICES = [
+        ("PAYMENT_RECEIVED", _("Payment received")),
+        ("PAYMENT_REQUIRED", _("Payment required")),
+        ("LAB_RESULT_READY", _("Lab result ready")),
+        ("LAB_CRITICAL", _("Critical lab result")),
+        ("RX_READY", _("Prescription ready to dispense")),
+        ("RX_DISPENSED", _("Prescription dispensed")),
+        ("ENCOUNTER_AMENDED", _("Encounter amended")),
+        ("INFO", _("Info")),
+    ]
+
+    LEVEL_CHOICES = [
+        ("INFO", _("Info")),
+        ("SUCCESS", _("Success")),
+        ("WARNING", _("Warning")),
+        ("CRITICAL", _("Critical")),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+    kind = models.CharField(max_length=30, choices=KIND_CHOICES, db_index=True)
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default="INFO")
+    title = models.CharField(max_length=200)
+    body = models.TextField(blank=True, default="")
+    # Where the notification leads when clicked. Free-form so we don't have to
+    # add a column every time a new target type appears.
+    url = models.CharField(max_length=500, blank=True, default="")
+    # Optional pointer back to the entity that triggered this — handy for
+    # de-duplication and for the actor view ("don't notify me about my own
+    # action").
+    entity_type = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    entity_id = models.UUIDField(null=True, blank=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Notification")
+        verbose_name_plural = _("Notifications")
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.kind}] {self.title} -> {self.recipient}"
+
+
 class AuditLog(models.Model):
     """
     Comprehensive audit log capturing reads, writes, exports, and auth events.

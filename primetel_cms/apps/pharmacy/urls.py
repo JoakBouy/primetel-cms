@@ -22,4 +22,5 @@ urlpatterns = [
     path("drugs/<uuid:pk>/toggle/", views.drug_toggle_active, name="drug_toggle"),
     path("drugs/<uuid:drug_pk>/receive/", views.stock_receive, name="stock_receive"),
     path("stock/<uuid:item_pk>/adjust/", views.stock_adjust, name="stock_adjust"),
+    path("stock/<uuid:item_pk>/edit/", views.stock_edit, name="stock_edit"),
 ]

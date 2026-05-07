@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
 from apps.core.models import AuditLog
+from apps.core.notifications import notify_role, notify_user
 from apps.core.pdf import render_pdf
 from apps.encounters.models import Encounter
 
@@ -35,7 +36,7 @@ def _audit(request, action, obj, **metadata):
         pass
 
 
-@requires_role("LAB", "CLINICIAN", "ADMIN")
+@requires_role("LAB", "CLINICIAN", "PHARMACY", "ADMIN")
 @never_cache
 def lab_queue(request):
     """Lab queue — tests awaiting processing (not yet resulted)."""
@@ -48,7 +49,7 @@ def lab_queue(request):
     })
 
 
-@requires_role("LAB", "CLINICIAN", "ADMIN")
+@requires_role("LAB", "CLINICIAN", "PHARMACY", "ADMIN")
 @never_cache
 def lab_results(request):
     """Processed lab tests — results entered (RESULTED) and clinician-reviewed (REVIEWED)."""
@@ -61,7 +62,7 @@ def lab_results(request):
     })
 
 
-@requires_role("LAB", "CLINICIAN", "ADMIN")
+@requires_role("LAB", "CLINICIAN", "PHARMACY", "ADMIN")
 @never_cache
 def lab_order_detail(request, pk):
     """Lab order detail / result entry."""
@@ -138,6 +139,21 @@ def lab_result_enter(request, pk):
         order.updated_by = request.user
         order.save(update_fields=["status", "resulted_at", "updated_by", "updated_at"])
     messages.success(request, _("Result saved and visible to the clinician."))
+
+    # Notify the ordering clinician. Critical flags bump to CRITICAL level so the
+    # bell shows red and they don't miss it.
+    is_critical = (flag == "CRITICAL")
+    notify_user(
+        order.ordered_by,
+        kind="LAB_CRITICAL" if is_critical else "LAB_RESULT_READY",
+        level="CRITICAL" if is_critical else "INFO",
+        title=(_("CRITICAL lab result") if is_critical else _("Lab result ready")),
+        body=f"{order.encounter.patient.full_name} · {order.test.code} {order.test.name}"
+             + (f" · {parsed_numeric}" if parsed_numeric is not None else (f" · {value_text[:40]}" if value_text else "")),
+        url=f"/lab/orders/{order.pk}/",
+        entity_type="LabOrder",
+        entity_id=order.pk,
+    )
     return redirect("lab:order_detail", pk=pk)
 
 
@@ -208,13 +224,30 @@ def lab_order_new(request, encounter_pk):
     if encounter.status == "FINALISED":
         messages.error(request, _("Encounter is finalised. Reopen it to order a test."))
         return redirect("encounters:detail", pk=encounter.pk)
+    # Hard payment gate: services rendered only after billing.
+    from apps.billing.models import Invoice
+    inv = Invoice.objects.filter(encounter=encounter).first()
+    if inv is not None and inv.status not in ("PAID", "WAIVED") and inv.balance_tzs > 0:
+        messages.error(request, _("Awaiting payment confirmation. The receptionist must record the consultation payment before lab tests can be ordered."))
+        return redirect("encounters:detail", pk=encounter.pk)
     tests = LabTest.objects.filter(is_active=True).order_by("name")
     if request.method == "POST":
         test = get_object_or_404(LabTest, pk=request.POST.get("test"))
-        LabOrder.objects.create(
+        order = LabOrder.objects.create(
             encounter=encounter, test=test, ordered_by=request.user, created_by=request.user
         )
         messages.success(request, _("Lab order placed."))
+        notify_role(
+            "LAB",
+            exclude_actor=request.user,
+            kind="LAB_RESULT_READY",  # repurposed: "lab work to do"
+            level="INFO",
+            title=_("New lab order"),
+            body=f"{encounter.patient.full_name} · {test.code} {test.name}",
+            url=f"/lab/orders/{order.pk}/",
+            entity_type="LabOrder",
+            entity_id=order.pk,
+        )
         return redirect("encounters:detail", pk=encounter.pk)
     return render(request, "lab/order_new.html", {
         "page_title": _("Order Lab Test"),

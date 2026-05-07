@@ -233,7 +233,8 @@
                     </span>
                 </a>
 
-                <a href="/patients/" 
+                {% if nav_visible.patients %}
+                <a href="/patients/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/patients/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-patients">
                     <span class="flex items-center gap-2">
@@ -241,8 +242,10 @@
                         {% trans "Patients" %}
                     </span>
                 </a>
+                {% endif %}
 
-                <a href="/appointments/" 
+                {% if nav_visible.appointments %}
+                <a href="/appointments/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/appointments/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-appointments">
                     <span class="flex items-center gap-2">
@@ -250,8 +253,10 @@
                         {% trans "Appointments" %}
                     </span>
                 </a>
+                {% endif %}
 
-                <a href="/pharmacy/" 
+                {% if nav_visible.pharmacy %}
+                <a href="/pharmacy/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/pharmacy/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-pharmacy">
                     <span class="flex items-center gap-2">
@@ -259,8 +264,10 @@
                         {% trans "Pharmacy" %}
                     </span>
                 </a>
+                {% endif %}
 
-                <a href="/lab/" 
+                {% if nav_visible.lab %}
+                <a href="/lab/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/lab/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-lab">
                     <span class="flex items-center gap-2">
@@ -268,8 +275,10 @@
                         {% trans "Laboratory" %}
                     </span>
                 </a>
+                {% endif %}
 
-                <a href="/billing/" 
+                {% if nav_visible.billing %}
+                <a href="/billing/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/billing/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-billing">
                     <span class="flex items-center gap-2">
@@ -277,8 +286,10 @@
                         {% trans "Billing" %}
                     </span>
                 </a>
+                {% endif %}
 
-                <a href="/reports/" 
+                {% if nav_visible.reports %}
+                <a href="/reports/"
                    class="px-3 py-2 rounded-lg text-sm font-medium {% if '/reports/' in request.path %}text-primary-600 bg-primary-50{% else %}text-slate-600 hover:text-slate-800 hover:bg-slate-100{% endif %} transition-colors"
                    id="nav-reports">
                     <span class="flex items-center gap-2">
@@ -286,6 +297,7 @@
                         {% trans "Reports" %}
                     </span>
                 </a>
+                {% endif %}
             </div>
 
             <!-- Right: Language + User Menu -->
@@ -316,6 +328,34 @@
                         {% endfor %}
                     </div>
                 </div>
+
+                <!-- Notification Bell -->
+                {% if user.is_authenticated %}
+                <div class="relative" x-data="{ bellOpen: false }" @click.away="bellOpen = false">
+                    <button @click="bellOpen = !bellOpen; if (bellOpen) htmx.trigger('#bell-panel-body', 'load')"
+                            class="relative p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+                            id="bell-toggle"
+                            aria-label="{% trans 'Notifications' %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                        <span id="bell-badge"
+                              hx-get="{% url 'notifications_badge' %}"
+                              hx-trigger="load, every 30s"
+                              hx-swap="innerHTML">
+                            {% include "core/_notification_badge.html" with unread_count=notif_unread %}
+                        </span>
+                    </button>
+                    <div x-show="bellOpen" x-transition
+                         class="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden"
+                         x-cloak>
+                        <div id="bell-panel-body"
+                             hx-get="{% url 'notifications_panel' %}"
+                             hx-trigger="load"
+                             hx-swap="innerHTML">
+                            <div class="px-4 py-10 text-center text-xs text-slate-400">{% trans "Loading…" %}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- User Menu -->
                 {% if user.is_authenticated %}
@@ -390,30 +430,46 @@
             <div>
                 <p class="px-3 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{% trans "Quick Actions" %}</p>
                 <nav class="space-y-1">
+                    {% if nav_visible.patients %}
                     <a href="/patients/new/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all" id="sidebar-new-patient">
                         <div class="w-8 h-8 rounded-lg bg-success-50 flex items-center justify-center">
                             <svg class="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
                         </div>
                         <span>{% trans "Register Patient" %}</span>
                     </a>
+                    {% endif %}
+                    {% if nav_visible.appointments %}
                     <a href="/appointments/queue/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all" id="sidebar-queue">
                         <div class="w-8 h-8 rounded-lg bg-warning-50 flex items-center justify-center">
                             <svg class="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         </div>
                         <span>{% trans "Today's Queue" %}</span>
                     </a>
+                    {% endif %}
+                    {% if nav_visible.pharmacy %}
                     <a href="/pharmacy/queue/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all" id="sidebar-rx-queue">
                         <div class="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
                             <svg class="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
                         </div>
                         <span>{% trans "Rx Queue" %}</span>
                     </a>
+                    {% endif %}
+                    {% if nav_visible.lab %}
                     <a href="/lab/queue/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all" id="sidebar-lab-queue">
                         <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
                             <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
                         </div>
                         <span>{% trans "Lab Queue" %}</span>
                     </a>
+                    {% endif %}
+                    {% if nav_visible.billing %}
+                    <a href="/billing/invoices/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all" id="sidebar-invoices">
+                        <div class="w-8 h-8 rounded-lg bg-warning-50 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        </div>
+                        <span>{% trans "Invoices" %}</span>
+                    </a>
+                    {% endif %}
                 </nav>
             </div>
 
@@ -424,30 +480,42 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                         {% trans "Dashboard" %}
                     </a>
+                    {% if nav_visible.patients %}
                     <a href="/patients/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/patients/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         {% trans "Patients" %}
                     </a>
+                    {% endif %}
+                    {% if nav_visible.appointments %}
                     <a href="/appointments/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/appointments/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         {% trans "Appointments" %}
                     </a>
+                    {% endif %}
+                    {% if nav_visible.pharmacy %}
                     <a href="/pharmacy/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/pharmacy/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
                         {% trans "Pharmacy" %}
                     </a>
+                    {% endif %}
+                    {% if nav_visible.lab %}
                     <a href="/lab/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/lab/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                         {% trans "Laboratory" %}
                     </a>
+                    {% endif %}
+                    {% if nav_visible.billing %}
                     <a href="/billing/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/billing/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                         {% trans "Billing" %}
                     </a>
+                    {% endif %}
+                    {% if nav_visible.reports %}
                     <a href="/reports/" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all {% if '/reports/' in request.path %}active{% endif %}">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                         {% trans "Reports" %}
                     </a>
+                    {% endif %}
                 </nav>
             </div>
             {% endblock %}
@@ -583,6 +651,39 @@
         });
         document.body.addEventListener('htmx:afterRequest', function(event) {
             event.target.classList.remove('opacity-70');
+        });
+
+        // ─── Bell pop-ups ─────────────────────────────
+        // The badge endpoint sends an HX-Trigger payload listing notifications
+        // that arrived since the last poll. HTMX dispatches each as a
+        // 'notify-toast' DOM event; here we relay each into the existing toast
+        // queue so they auto-dismiss after 5 seconds. CRITICAL items get longer
+        // visibility because they need attention.
+        const _seenToastIds = new Set();
+        document.body.addEventListener('notify-toast', function(event) {
+            // HTMX HX-Trigger with a list passes the array as event.detail.value.
+            const items = Array.isArray(event.detail) ? event.detail
+                        : Array.isArray(event.detail?.value) ? event.detail.value
+                        : [event.detail];
+            items.forEach(function(n) {
+                if (!n || _seenToastIds.has(n.id)) return;
+                _seenToastIds.add(n.id);
+                const levelToType = {
+                    critical: 'error',
+                    warning: 'warning',
+                    success: 'success',
+                    info: 'info',
+                };
+                const type = levelToType[(n.level || 'info').toLowerCase()] || 'info';
+                window.dispatchEvent(new CustomEvent('toast', {
+                    detail: {
+                        type: type,
+                        title: n.title || '',
+                        message: n.body || '',
+                        duration: type === 'error' ? 12000 : 5000,
+                    }
+                }));
+            });
         });
 
         // ─── Network Status (Offline tolerance) ───────

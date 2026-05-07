@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -12,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
 from apps.core.models import AuditLog
+from apps.core.notifications import notify_role, notify_user
 from apps.core.pdf import render_pdf
 from apps.encounters.models import Encounter
 
@@ -33,6 +35,37 @@ def _audit(request, action, obj, **metadata):
         )
     except Exception:
         pass
+
+
+def _bill_prescription(rx):
+    """Add a billing line for a prescription to the encounter's invoice.
+
+    Charged at the drug's catalogue unit_price_tzs. If the encounter has no
+    invoice yet (rare — the encounter open flow auto-charges) this is a no-op
+    so we don't accidentally create a stray invoice. Returns True if a line
+    was added.
+    """
+    try:
+        from apps.billing.models import Invoice, InvoiceLine
+        invoice = Invoice.objects.filter(encounter_id=rx.encounter_id).first()
+        if invoice is None or invoice.status in ("CANCELLED", "WAIVED"):
+            return False
+        unit_price = rx.drug.unit_price_tzs or Decimal("0")
+        InvoiceLine.objects.create(
+            invoice=invoice,
+            description=f"{rx.drug.generic_name} {rx.drug.strength} ({rx.drug.get_form_display()})",
+            quantity=Decimal(rx.quantity),
+            unit_price_tzs=unit_price,
+        )
+        invoice.recalculate()
+        # Reopen a paid invoice so the new balance shows up correctly.
+        if invoice.balance_tzs > 0 and invoice.status == "PAID":
+            invoice.status = "PARTIALLY_PAID"
+            invoice.save(update_fields=["status"])
+        return True
+    except Exception:
+        # Never break Rx creation on a billing hiccup.
+        return False
 
 
 @requires_role("PHARMACY", "ADMIN")
@@ -79,6 +112,23 @@ def rx_dispense(request, pk):
         messages.error(request, _("This prescription cannot be dispensed."))
         return redirect("pharmacy:rx_queue")
 
+    # Hard payment gate: don't dispense until the bill is settled. Pharmacy
+    # staff should send the patient back to the till instead of dispensing
+    # against an unpaid balance.
+    try:
+        from apps.billing.models import Invoice
+        invoice = Invoice.objects.filter(encounter_id=rx.encounter_id).first()
+        if invoice is not None and invoice.status not in ("PAID", "WAIVED") and invoice.balance_tzs > 0:
+            messages.error(
+                request,
+                _("Awaiting payment confirmation. Patient owes %(bal)s TZS — send them to the front desk before dispensing.")
+                % {"bal": invoice.balance_tzs},
+            )
+            return redirect("pharmacy:rx_queue")
+    except Exception:
+        # If billing lookup fails for any reason, don't block dispensing.
+        invoice = None
+
     available_batches = rx.drug.stock_items.filter(quantity_on_hand__gt=0).order_by("expiry_date")
     already_dispensed = sum(d.quantity_dispensed for d in rx.dispenses.all())
     remaining = max(rx.quantity - already_dispensed, 0)
@@ -105,6 +155,19 @@ def rx_dispense(request, pk):
                 patient_counselled=request.POST.get("counselled") == "on",
             ).save()
             messages.success(request, _("Dispensed %(q)s units.") % {"q": qty})
+            rx.refresh_from_db()
+            # Tell the prescribing clinician that the patient has been served.
+            if rx.prescribed_by_id:
+                notify_user(
+                    rx.prescribed_by,
+                    kind="RX_DISPENSED",
+                    level="SUCCESS" if rx.status == "DISPENSED" else "INFO",
+                    title=(_("Prescription dispensed") if rx.status == "DISPENSED" else _("Prescription partially dispensed")),
+                    body=f"{rx.encounter.patient.full_name} · {rx.drug.generic_name} {rx.drug.strength}",
+                    url=f"/encounters/{rx.encounter_id}/",
+                    entity_type="Prescription",
+                    entity_id=rx.pk,
+                )
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
             return redirect("pharmacy:rx_dispense", pk=pk)
@@ -128,6 +191,12 @@ def rx_prescribe(request, encounter_pk):
     encounter = get_object_or_404(Encounter.objects.for_user(request.user), pk=encounter_pk)
     if encounter.status == "FINALISED":
         messages.error(request, _("Encounter is finalised. Reopen it to add a prescription."))
+        return redirect("encounters:detail", pk=encounter.pk)
+    # Hard payment gate: prescriptions written only after consultation paid.
+    from apps.billing.models import Invoice
+    inv = Invoice.objects.filter(encounter=encounter).first()
+    if inv is not None and inv.status not in ("PAID", "WAIVED") and inv.balance_tzs > 0:
+        messages.error(request, _("Awaiting payment confirmation. The receptionist must record the consultation payment before prescriptions can be written."))
         return redirect("encounters:detail", pk=encounter.pk)
 
     drugs = Drug.objects.filter(is_active=True).order_by("generic_name")
@@ -166,7 +235,7 @@ def rx_prescribe(request, encounter_pk):
                 f"[ALLERGY OVERRIDE — {match}] reason: {override_reason}\n{instructions}"
             ).strip()
 
-        Prescription.objects.create(
+        rx = Prescription.objects.create(
             encounter=encounter,
             drug=drug,
             dose=dose,
@@ -177,7 +246,46 @@ def rx_prescribe(request, encounter_pk):
             prescribed_by=request.user,
             created_by=request.user,
         )
-        messages.success(request, _("Prescription added."))
+        billed = _bill_prescription(rx)
+        if billed:
+            messages.success(
+                request,
+                _("Prescription added and billed at %(p)s TZS per unit (× %(q)s).") % {
+                    "p": drug.unit_price_tzs or 0, "q": quantity,
+                },
+            )
+        else:
+            messages.success(request, _("Prescription added."))
+        notify_role(
+            "PHARMACY",
+            exclude_actor=request.user,
+            kind="RX_READY",
+            level="INFO",
+            title=_("New prescription to dispense"),
+            body=f"{encounter.patient.full_name} · {drug.generic_name} {drug.strength} × {quantity}",
+            url=f"/pharmacy/rx/{rx.pk}/dispense/",
+            entity_type="Prescription",
+            entity_id=rx.pk,
+        )
+        # Tell the front desk a new chargeable line was added so they can collect.
+        if billed:
+            try:
+                from apps.billing.models import Invoice
+                inv = Invoice.objects.filter(encounter=encounter).first()
+                if inv is not None and inv.balance_tzs > 0:
+                    notify_role(
+                        ["RECEPTIONIST", "FINANCE"],
+                        exclude_actor=request.user,
+                        kind="PAYMENT_REQUIRED",
+                        level="WARNING",
+                        title=_("Drugs to collect payment for"),
+                        body=f"{encounter.patient.full_name} · {drug.generic_name} {drug.strength} × {quantity} · {inv.balance_tzs} TZS",
+                        url=f"/billing/invoices/{inv.pk}/",
+                        entity_type="Invoice",
+                        entity_id=inv.pk,
+                    )
+            except Exception:
+                pass
         return redirect("encounters:detail", pk=encounter.pk)
 
     return render(request, "pharmacy/prescribe.html", {
@@ -218,13 +326,55 @@ def drug_catalogue(request):
 
 @requires_role("PHARMACY", "ADMIN")
 def drug_create(request):
-    """Add a new drug to the formulary."""
+    """Add a drug to the formulary, optionally with a first stock batch.
+
+    If batch_number / expiry_date / quantity_on_hand are supplied, a StockItem
+    is created in the same transaction so the pharmacy doesn't have to do a
+    separate "receive stock" step on the very first batch.
+    """
     if request.method == "POST":
         try:
             drug = _populate_drug(Drug(), request.POST)
             drug.full_clean()
-            drug.save()
-            messages.success(request, _("Drug '%(n)s' added.") % {"n": drug.generic_name})
+
+            batch_number = (request.POST.get("batch_number") or "").strip()
+            expiry_raw = (request.POST.get("expiry_date") or "").strip()
+            qty_raw = (request.POST.get("quantity_on_hand") or "").strip()
+
+            with transaction.atomic():
+                drug.save()
+                if batch_number or expiry_raw or qty_raw:
+                    # Any of these means the user intends to register a batch.
+                    # Validate the trio together so partial input is rejected.
+                    if not (batch_number and expiry_raw and qty_raw):
+                        raise ValueError("Batch number, expiry date and quantity are all required to register a batch.")
+                    try:
+                        expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
+                    except ValueError:
+                        raise ValueError("Expiry date must be YYYY-MM-DD.")
+                    if expiry <= timezone.now().date():
+                        raise ValueError("Expiry date must be in the future.")
+                    try:
+                        qty = int(qty_raw)
+                    except ValueError:
+                        raise ValueError("Quantity must be a whole number.")
+                    if qty <= 0:
+                        raise ValueError("Quantity must be positive.")
+                    item = StockItem.objects.create(
+                        drug=drug, batch_number=batch_number,
+                        expiry_date=expiry, quantity_on_hand=qty,
+                    )
+                    StockMovement.objects.create(
+                        stock_item=item, movement_type="RECEIVE",
+                        quantity=qty, performed_by=request.user,
+                    )
+                    messages.success(
+                        request,
+                        _("Drug '%(n)s' added with batch %(b)s (%(q)s units).")
+                        % {"n": drug.generic_name, "b": batch_number, "q": qty},
+                    )
+                else:
+                    messages.success(request, _("Drug '%(n)s' added.") % {"n": drug.generic_name})
             return redirect("pharmacy:catalogue")
         except Exception as exc:
             messages.error(request, _("Could not save: %(e)s") % {"e": exc})
@@ -454,6 +604,51 @@ def rx_void(request, pk):
     _audit(request, "UPDATE", rx, change="void_dispensed_prescription", reason=reason)
     messages.success(request, _("Prescription voided and stock returned. Reason recorded."))
     return redirect("pharmacy:rx_queue")
+
+
+@requires_role("PHARMACY", "ADMIN")
+def stock_edit(request, item_pk):
+    """Edit an existing stock batch (correct typos in batch number, expiry date,
+    or quantity). Quantity changes are recorded as a StockMovement so the audit
+    trail remains complete."""
+    item = get_object_or_404(StockItem.objects.select_related("drug"), pk=item_pk)
+    if request.method == "POST":
+        batch_number = (request.POST.get("batch_number") or "").strip()
+        expiry_raw = (request.POST.get("expiry_date") or "").strip()
+        qty_raw = (request.POST.get("quantity_on_hand") or "").strip()
+        if not batch_number or not expiry_raw or not qty_raw:
+            messages.error(request, _("Batch number, expiry date and quantity are all required."))
+            return redirect("pharmacy:stock_edit", item_pk=item.pk)
+        try:
+            expiry = datetime.strptime(expiry_raw, "%Y-%m-%d").date()
+        except ValueError:
+            messages.error(request, _("Expiry date must be YYYY-MM-DD."))
+            return redirect("pharmacy:stock_edit", item_pk=item.pk)
+        try:
+            new_qty = int(qty_raw)
+        except ValueError:
+            messages.error(request, _("Quantity must be a whole number."))
+            return redirect("pharmacy:stock_edit", item_pk=item.pk)
+        if new_qty < 0:
+            messages.error(request, _("Quantity cannot be negative."))
+            return redirect("pharmacy:stock_edit", item_pk=item.pk)
+        with transaction.atomic():
+            qty_diff = new_qty - item.quantity_on_hand
+            item.batch_number = batch_number
+            item.expiry_date = expiry
+            item.quantity_on_hand = new_qty
+            item.save(update_fields=["batch_number", "expiry_date", "quantity_on_hand"])
+            if qty_diff != 0:
+                StockMovement.objects.create(
+                    stock_item=item, movement_type="ADJUST",
+                    quantity=qty_diff, performed_by=request.user,
+                )
+        messages.success(request, _("Batch updated."))
+        return redirect("pharmacy:drug_detail", pk=item.drug.pk)
+    return render(request, "pharmacy/stock_edit.html", {
+        "page_title": _("Edit batch"),
+        "item": item,
+    })
 
 
 @require_POST
