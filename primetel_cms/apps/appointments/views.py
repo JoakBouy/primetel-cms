@@ -140,3 +140,46 @@ def check_out(request, pk):
     apt.check_out(user=request.user)
     messages.success(request, _("Patient checked out."))
     return redirect("appointments:queue")
+
+
+@require_POST
+@requires_role("RECEPTIONIST", "NURSE", "CLINICIAN", "ADMIN")
+def send_to_billing(request, pk):
+    """Generate a 'pay-first' consultation invoice for this appointment's patient.
+
+    Used by the pay-before-consult workflow: nurse/reception clicks
+    'Send to billing' on a checked-in patient → a draft consultation
+    invoice is created (no encounter yet). Reception records the payment;
+    the clinician then opens the encounter on the patient chart.
+    """
+    apt = get_object_or_404(Appointment.objects.select_related("patient"), pk=pk)
+    try:
+        from apps.billing.consultation import prepay_consultation
+        invoice = prepay_consultation(apt.patient, request.user, encounter_type="GENERAL")
+        if invoice is None:
+            messages.error(request, _("Could not create the consultation invoice."))
+            return redirect("appointments:queue")
+        # Notify the front desk so they know to collect.
+        try:
+            from apps.core.notifications import notify_role
+            notify_role(
+                ["RECEPTIONIST", "FINANCE"],
+                exclude_actor=request.user,
+                kind="PAYMENT_REQUIRED",
+                level="WARNING",
+                title=_("Consultation to collect"),
+                body=f"{apt.patient.full_name} · {invoice.invoice_number} · {invoice.total_tzs} TZS",
+                url=f"/billing/invoices/{invoice.pk}/",
+                entity_type="Invoice",
+                entity_id=invoice.pk,
+            )
+        except Exception:
+            pass
+        messages.success(
+            request,
+            _("Patient sent to billing. Invoice %(n)s for %(amt)s TZS.")
+            % {"n": invoice.invoice_number, "amt": invoice.total_tzs},
+        )
+    except Exception as exc:
+        messages.error(request, _("Could not send to billing: %(e)s") % {"e": exc})
+    return redirect("appointments:queue")

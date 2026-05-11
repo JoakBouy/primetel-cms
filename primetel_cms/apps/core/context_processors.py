@@ -40,12 +40,18 @@ def _nav_visibility(user):
 def global_context(request):
     """Add global context variables available in all templates."""
     user = getattr(request, "user", None)
-    # Defer the import so the apps registry is ready by the time we hit it.
-    try:
-        from .notifications import unread_count
-        notif_unread = unread_count(user)
-    except Exception:
-        notif_unread = 0
+    # Skip the unread-count query on background polls and partials that don't
+    # render the bell wrapper. The bell badge endpoint computes the count
+    # itself; running it here too would double-query on every poll.
+    path = getattr(request, "path", "") or ""
+    is_partial_endpoint = path.startswith("/api/")
+    notif_unread = 0
+    if not is_partial_endpoint:
+        try:
+            from .notifications import unread_count
+            notif_unread = unread_count(user)
+        except Exception:
+            notif_unread = 0
     return {
         "SITE_NAME": "Primetel CMS",
         "CLINIC_NAME": "Monduli Clinic",

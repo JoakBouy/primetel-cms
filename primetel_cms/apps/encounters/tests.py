@@ -137,25 +137,16 @@ def test_finalised_encounter_blocks_vitals_via_view(client, encounter, nurse, cl
 
 
 @pytest.mark.django_db
-def test_nurse_can_start_encounter_for_vitals_then_clinician_claims_it(client, nurse, clinician, patient):
+def test_nurse_cannot_start_encounter_pay_first_flow(client, nurse, patient):
+    """Under the pay-first workflow, nurses cannot create encounters at all.
+
+    The encounter is created by the clinician after reception records payment.
+    """
     client.force_login(nurse)
     resp = client.get(reverse("encounters:new") + f"?patient={patient.pk}")
-    assert resp.status_code == 200
-
-    resp = client.post(
-        reverse("encounters:new") + f"?patient={patient.pk}",
-        data={"encounter_type": "GENERAL", "chief_complaint": "Vitals check"},
-    )
-    assert resp.status_code == 302
-    encounter = Encounter.objects.get(patient=patient)
-    assert encounter.clinician == nurse
-    assert Invoice.objects.filter(encounter=encounter).exists()
-
-    client.force_login(clinician)
-    resp = client.get(reverse("encounters:detail", args=[encounter.pk]))
-    assert resp.status_code == 200
-    encounter.refresh_from_db()
-    assert encounter.clinician == clinician
+    assert resp.status_code == 403
+    # No encounter was created.
+    assert not Encounter.objects.filter(patient=patient).exists()
 
 
 @pytest.mark.django_db

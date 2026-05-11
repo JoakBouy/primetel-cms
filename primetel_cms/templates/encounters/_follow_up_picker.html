@@ -1,0 +1,38 @@
+{% load i18n %}
+{% if query %}
+    {% if patients %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+        <ul class="divide-y divide-slate-100 max-h-[28rem] overflow-y-auto">
+            {% for p in patients %}
+            <li>
+                <a href="{% url 'patients:chart' p.pk %}?intent=follow_up"
+                   class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-primary-50 focus:bg-primary-50 transition-colors"
+                   id="follow-up-pick-{{ p.pk }}">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-medium text-slate-800 truncate">{{ p.full_name }}</p>
+                        <p class="text-xs text-slate-500">
+                            {{ p.age_display }} · {{ p.get_sex_display }}{% if p.phone %} · <span class="font-mono">{{ p.phone }}</span>{% endif %}
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span class="font-mono text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-lg">{{ p.patient_number }}</span>
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 text-center">
+        <p class="text-sm text-slate-500">
+            {% trans "No returning patients match" %} "<span class="font-semibold">{{ query }}</span>".
+        </p>
+        <p class="text-xs text-slate-400 mt-1">
+            {% trans "Patients with no prior visits won't appear here — register them or use Patients → search." %}
+        </p>
+    </div>
+    {% endif %}
+{% endif %}

@@ -57,9 +57,13 @@
             <tr>
                 <td class="text-xs text-slate-400">{{ forloop.counter }}</td>
                 <td>
+                    {% if user.role_code == 'RECEPTIONIST' %}
+                    <span class="font-medium text-slate-800">{{ apt.patient.full_name }}</span>
+                    {% else %}
                     <a href="{% url 'patients:chart' apt.patient.pk %}" class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
                         {{ apt.patient.full_name }}
                     </a>
+                    {% endif %}
                     <p class="text-[10px] text-slate-400 font-mono">{{ apt.patient.patient_number }}</p>
                 </td>
                 <td class="text-sm text-slate-500">{{ apt.scheduled_start|time:"H:i" }}</td>
@@ -84,9 +88,19 @@
                             </button>
                         </form>
                         {% elif apt.status == "CHECKED_IN" %}
-                        <a href="{% url 'encounters:new' %}?patient={{ apt.patient.pk }}" class="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
-                            {% trans "Start Consult" %}
-                        </a>
+                            {% if user.role_code == 'CLINICIAN' or user.role_code == 'ADMIN' or user.is_superuser %}
+                            <a href="{% url 'encounters:new' %}?patient={{ apt.patient.pk }}" class="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-lg transition-colors">
+                                {% trans "Start Consult" %}
+                            </a>
+                            {% elif user.role_code == 'NURSE' or user.role_code == 'RECEPTIONIST' %}
+                            <form method="POST" action="{% url 'appointments:send_to_billing' apt.pk %}" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+                                        onclick="return confirm('{% trans "Generate the consultation invoice and send the patient to reception?" %}')">
+                                    {% trans "Send to billing" %}
+                                </button>
+                            </form>
+                            {% endif %}
                         {% elif apt.status == "IN_CONSULT" %}
                         <form method="POST" action="{% url 'appointments:check_out' apt.pk %}" class="inline">
                             {% csrf_token %}
@@ -95,9 +109,15 @@
                             </button>
                         </form>
                         {% endif %}
-                        <a href="{% url 'patients:chart' apt.patient.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
-                            {% trans "Chart" %}
-                        </a>
+                        {% if user.role_code == 'RECEPTIONIST' %}
+                            <a href="{% url 'billing:invoice_list' %}?patient={{ apt.patient.pk }}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
+                                {% trans "Payments" %}
+                            </a>
+                        {% else %}
+                            <a href="{% url 'patients:chart' apt.patient.pk %}" class="px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors">
+                                {% trans "Chart" %}
+                            </a>
+                        {% endif %}
                     </div>
                 </td>
             </tr>
@@ -113,5 +133,16 @@
         <p class="text-xs text-slate-400">{% trans "Add a walk-in or scheduled appointment to get started." %}</p>
     </div>
     {% endif %}
+</div>
+
+<!-- My Activity feed (lazy-loaded so it doesn't slow the queue). -->
+<div class="mt-6"
+     hx-get="{% url 'my_activity' %}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 animate-pulse">
+        <div class="h-4 w-32 bg-slate-200 rounded"></div>
+        <div class="h-3 w-48 bg-slate-100 rounded mt-3"></div>
+    </div>
 </div>
 {% endblock %}

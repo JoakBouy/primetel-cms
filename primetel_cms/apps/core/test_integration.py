@@ -889,6 +889,55 @@ def test_amend_finalised_encounter_requires_reason(client, clinician, encounter)
 # ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
+def test_follow_up_landing_requires_clinical_role(client, receptionist):
+    """RECEPTIONIST cannot reach the follow-up landing."""
+    client.force_login(receptionist)
+    resp = client.get(reverse("encounters:follow_up"))
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_follow_up_landing_loads_for_clinician(client, clinician):
+    client.force_login(clinician)
+    resp = client.get(reverse("encounters:follow_up"))
+    assert resp.status_code == 200
+    assert b"follow-up-search" in resp.content
+
+
+@pytest.mark.django_db
+def test_follow_up_picker_returns_only_patients_with_finalised_history(
+    client, clinician, patient
+):
+    """A patient with no finalised encounter must not appear in results."""
+    client.force_login(clinician)
+    # No finalised encounter yet → should be excluded.
+    resp = client.get(reverse("encounters:follow_up_picker") + f"?q={patient.full_name[:5]}")
+    assert resp.status_code == 200
+    assert patient.patient_number.encode() not in resp.content
+
+    # Create + finalise an encounter so they qualify as returning.
+    enc = Encounter.objects.create(
+        patient=patient, clinician=clinician,
+        encounter_type="GENERAL", chief_complaint="x", assessment="y",
+    )
+    enc.finalise(user=clinician)
+
+    resp2 = client.get(reverse("encounters:follow_up_picker") + f"?q={patient.full_name[:5]}")
+    assert resp2.status_code == 200
+    assert patient.patient_number.encode() in resp2.content
+
+
+@pytest.mark.django_db
+def test_follow_up_picker_empty_query_returns_no_results(client, clinician):
+    """No query string should mean no results — don't dump the whole patient list."""
+    client.force_login(clinician)
+    resp = client.get(reverse("encounters:follow_up_picker"))
+    assert resp.status_code == 200
+    # Empty query → empty body (the template short-circuits on `{% if query %}`).
+    assert b"follow-up-pick-" not in resp.content
+
+
+@pytest.mark.django_db
 def test_swahili_translations_compiled():
     """Sanity check: the .mo file exists and Django reads it."""
     from django.utils import translation

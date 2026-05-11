@@ -112,6 +112,18 @@
 </div>
 {% endif %}
 
+<!-- My Activity (per-user feed). Lazy-loaded so it doesn't slow the
+     dashboard's first paint. -->
+<div class="mb-8"
+     hx-get="{% url 'my_activity' %}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 animate-pulse">
+        <div class="h-4 w-32 bg-slate-200 rounded"></div>
+        <div class="h-3 w-48 bg-slate-100 rounded mt-3"></div>
+    </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════ -->
 <!--  CHARTS ROW                                         -->
 <!-- ═══════════════════════════════════════════════════ -->

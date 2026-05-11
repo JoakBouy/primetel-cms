@@ -12,4 +12,5 @@ urlpatterns = [
     path("patient-picker/", views.patient_picker, name="patient_picker"),
     path("<uuid:pk>/check-in/", views.check_in, name="check_in"),
     path("<uuid:pk>/check-out/", views.check_out, name="check_out"),
+    path("<uuid:pk>/send-to-billing/", views.send_to_billing, name="send_to_billing"),
 ]

@@ -167,34 +167,52 @@ def payment_record(request, pk):
         # Refresh status from DB after Payment.save() updates it.
         invoice.refresh_from_db()
         # If the payment fully clears a consultation invoice, ping the clinician
-        # so they know the patient can be seen now.
-        if invoice.encounter_id and invoice.status == "PAID":
-            enc = invoice.encounter
-            url = f"/encounters/{enc.pk}/"
-            patient_name = enc.patient.full_name if enc.patient_id else ""
-            if enc.clinician_id:
-                notify_user(
-                    enc.clinician,
-                    kind="PAYMENT_RECEIVED",
-                    level="SUCCESS",
-                    title=_("Patient paid — ready for consult"),
-                    body=f"{patient_name} · {invoice.invoice_number}",
-                    url=url,
-                    entity_type="Encounter",
-                    entity_id=enc.pk,
-                )
+        # so they know the patient can be seen now. Two cases:
+        #  (a) invoice is tied to an existing encounter → notify its clinician
+        #  (b) invoice is a "prepay" (no encounter yet) → fan out to clinicians
+        if invoice.status == "PAID":
+            patient_name = invoice.patient.full_name if invoice.patient_id else ""
+            if invoice.encounter_id:
+                enc = invoice.encounter
+                url = f"/encounters/{enc.pk}/"
+                if enc.clinician_id:
+                    notify_user(
+                        enc.clinician,
+                        kind="PAYMENT_RECEIVED",
+                        level="SUCCESS",
+                        title=_("Patient paid — ready for consult"),
+                        body=f"{patient_name} · {invoice.invoice_number}",
+                        url=url,
+                        entity_type="Encounter",
+                        entity_id=enc.pk,
+                    )
+                else:
+                    notify_role(
+                        ["CLINICIAN"],
+                        exclude_actor=request.user,
+                        kind="PAYMENT_RECEIVED",
+                        level="SUCCESS",
+                        title=_("Patient paid — ready for consult"),
+                        body=f"{patient_name} · {invoice.invoice_number}",
+                        url=url,
+                        entity_type="Encounter",
+                        entity_id=enc.pk,
+                    )
             else:
-                # Fan out to all clinicians on duty if no specific clinician assigned.
+                # Prepaid consultation — encounter not yet created.
+                # Fan out to clinicians; they'll open the patient chart and
+                # click "Start Consult" which attaches the encounter to this
+                # invoice (see consultation.auto_charge prepay handling).
                 notify_role(
-                    ["CLINICIAN", "NURSE"],
+                    ["CLINICIAN"],
                     exclude_actor=request.user,
                     kind="PAYMENT_RECEIVED",
                     level="SUCCESS",
                     title=_("Patient paid — ready for consult"),
                     body=f"{patient_name} · {invoice.invoice_number}",
-                    url=url,
-                    entity_type="Encounter",
-                    entity_id=enc.pk,
+                    url=f"/patients/{invoice.patient_id}/" if invoice.patient_id else "/",
+                    entity_type="Patient",
+                    entity_id=invoice.patient_id,
                 )
     except ValidationError as e:
         messages.error(request, str(e))

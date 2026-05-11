@@ -38,11 +38,16 @@ class AuditLogMiddleware:
         if not hasattr(request, "user") or not request.user.is_authenticated:
             return response
 
-        # Skip static/media/admin/healthz requests
+        # Skip static/media/admin/healthz requests AND noisy background polls.
+        # The bell badge polls every 30s per user and would otherwise generate
+        # an audit row per poll, bloating the table without adding signal.
         path = request.path
         if any(
             path.startswith(prefix)
-            for prefix in ["/static/", "/media/", "/healthz/", "/favicon"]
+            for prefix in [
+                "/static/", "/media/", "/healthz/", "/health/", "/favicon",
+                "/sw.js", "/api/notifications/badge/",
+            ]
         ):
             return response
 

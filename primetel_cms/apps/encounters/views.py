@@ -117,9 +117,57 @@ def _claim_nurse_started_encounter(encounter, user):
         encounter.save(update_fields=["clinician", "updated_by", "updated_at"])
 
 
-@requires_role("NURSE", "CLINICIAN", "ADMIN")
+@requires_role("NURSE", "CLINICIAN", "COUNSELLOR", "ADMIN")
+def follow_up_search(request):
+    """Returning-patient landing page.
+
+    Clinician types a name / phone / patient number; HTMX hits
+    `follow_up_picker` for live results. Clicking a result lands the user on
+    that patient's chart with a 'Start follow-up consult' banner. The chart
+    is the safer landing than an immediate new encounter because the
+    clinician sees prior history before committing to a new visit.
+    """
+    return render(request, "encounters/follow_up.html", {
+        "page_title": _("Start follow-up consult"),
+    })
+
+
+@requires_role("NURSE", "CLINICIAN", "COUNSELLOR", "ADMIN")
+def follow_up_picker(request):
+    """HTMX search endpoint for the follow-up landing page.
+
+    Returns clickable result rows. Only surfaces patients with at least one
+    finalised encounter (i.e. "returning") — patients with no history go
+    through the normal Register / Anza Consult flow.
+    """
+    query = (request.GET.get("q") or "").strip()
+    patients = []
+    if query:
+        # Reuse the patient model's fuzzy search, then filter to those who
+        # have a finalised encounter on record. We cap to 20 for the dropdown.
+        candidates = Patient.objects.search(query)[:50]
+        # Prefetch the existence test in one query: ids of patients with any
+        # FINALISED encounter visible to this user.
+        with_history_ids = set(
+            Encounter.objects.for_user(request.user)
+            .filter(patient_id__in=[p.pk for p in candidates], status="FINALISED")
+            .values_list("patient_id", flat=True).distinct()
+        )
+        patients = [p for p in candidates if p.pk in with_history_ids][:20]
+    return render(request, "encounters/_follow_up_picker.html", {
+        "patients": patients,
+        "query": query,
+    })
+
+
+@requires_role("CLINICIAN", "ADMIN")
 def encounter_new(request):
-    """Start a new encounter for a patient — or resume an open draft."""
+    """Start a new encounter for a patient — or resume an open draft.
+
+    Nurses cannot initiate encounters: the patient must first be billed at
+    reception. After payment clears, the clinician opens the encounter and
+    sees the patient.
+    """
     patient_pk = request.GET.get("patient")
     patient = get_object_or_404(Patient, pk=patient_pk)
     # If the patient already has an open (DRAFT) general/follow-up encounter, resume it
@@ -157,6 +205,69 @@ def encounter_new(request):
         "page_title": _("New Encounter"),
         "patient": patient,
     })
+
+
+@require_POST
+@requires_role("RECEPTIONIST", "NURSE", "CLINICIAN", "ADMIN")
+def refer_to_psychologist(request, patient_pk):
+    """Refer a patient to mental health.
+
+    Creates a prepay MH consultation invoice (5000 TZS) for this patient.
+    Notifies counsellors that a new MH referral is pending payment, and
+    notifies reception that a new bill needs to be collected. The MH
+    encounter itself is created later, by the counsellor, after payment.
+
+    Same endpoint serves both the reception 'direct booking' path and the
+    clinician 'mid-encounter referral' path — they only differ in who
+    clicks the button.
+    """
+    patient = get_object_or_404(Patient, pk=patient_pk)
+    try:
+        from apps.billing.consultation import prepay_consultation
+        invoice = prepay_consultation(patient, request.user, encounter_type="MENTAL_HEALTH")
+    except Exception as exc:
+        messages.error(request, _("Could not refer to mental health: %(e)s") % {"e": exc})
+        return redirect(request.META.get("HTTP_REFERER") or "/")
+    if invoice is None:
+        messages.error(request, _("Could not create the MH consultation invoice."))
+        return redirect(request.META.get("HTTP_REFERER") or "/")
+    # Notify reception so they can collect; notify counsellors so they know
+    # there's an MH referral on its way after payment.
+    try:
+        from apps.core.notifications import notify_role
+        notify_role(
+            ["RECEPTIONIST", "FINANCE"],
+            exclude_actor=request.user,
+            kind="PAYMENT_REQUIRED",
+            level="WARNING",
+            title=_("MH consultation to collect"),
+            body=f"{patient.full_name} · {invoice.invoice_number} · {invoice.total_tzs} TZS",
+            url=f"/billing/invoices/{invoice.pk}/",
+            entity_type="Invoice",
+            entity_id=invoice.pk,
+        )
+        notify_role(
+            ["COUNSELLOR"],
+            exclude_actor=request.user,
+            kind="INFO",
+            level="INFO",
+            title=_("New MH referral"),
+            body=f"{patient.full_name} · awaiting payment",
+            url=f"/patients/{patient.pk}/",
+            entity_type="Patient",
+            entity_id=patient.pk,
+        )
+    except Exception:
+        pass
+    messages.success(
+        request,
+        _("Referred %(p)s to mental health. Invoice %(n)s for %(amt)s TZS.")
+        % {"p": patient.full_name, "n": invoice.invoice_number, "amt": invoice.total_tzs},
+    )
+    # Receptionist goes to the invoice; everyone else returns where they were.
+    if request.user.has_role("RECEPTIONIST"):
+        return redirect("billing:invoice_detail", pk=invoice.pk)
+    return redirect(request.META.get("HTTP_REFERER") or f"/patients/{patient.pk}/")
 
 
 @requires_role("COUNSELLOR", "ADMIN")

@@ -118,3 +118,52 @@ def notifications_mark_all_read(request):
         is_read=True, read_at=timezone.now()
     )
     return notifications_panel(request)
+
+
+# ─── My Activity panel ──────────────────────────────────────────
+
+@login_required
+def my_activity(request):
+    """HTMX-loaded 'My Activity' partial. Returns the user's last 20
+    interactions today: writes (CREATE/UPDATE/DELETE) on clinical/financial
+    entities, plus key reads (patient chart views).
+
+    Skips noise (request audits from background polls, every GET, etc.) so
+    the panel highlights *interactions* — actual actions the user took.
+    """
+    from .models import AuditLog
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Writes always count. Reads only count for patient chart views — those
+    # are clinically meaningful (a user looked at a chart) versus, say,
+    # opening the appointments queue.
+    qs = (
+        AuditLog.objects.filter(actor=request.user, timestamp__gte=today_start)
+        .filter(
+            # Writes on anything — those are interactions.
+            # OR patient-chart reads (entity_type="Patient", action="READ").
+            # We can't easily express "OR" in a single .filter, so split:
+        )
+    )
+    # Just pull the user's actions for today, filter Python-side; volumes
+    # are small enough that this is fine.
+    actions = list(
+        AuditLog.objects.filter(
+            actor=request.user, timestamp__gte=today_start,
+        ).order_by("-timestamp")[:80]
+    )
+
+    # Keep meaningful events: any write, or a Patient READ (chart access).
+    meaningful = []
+    for a in actions:
+        if a.action in ("CREATE", "UPDATE", "DELETE"):
+            meaningful.append(a)
+        elif a.action == "READ" and a.entity_type == "Patient":
+            meaningful.append(a)
+        if len(meaningful) >= 20:
+            break
+
+    return render(request, "core/_my_activity.html", {
+        "activity": meaningful,
+        "today_start": today_start,
+    })

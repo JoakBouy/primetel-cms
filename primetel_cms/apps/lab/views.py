@@ -55,10 +55,29 @@ def _invoice_is_paid(invoice) -> bool:
 
 
 def _attach_payment_state(orders):
-    """Attach display-only payment state to lab orders for templates."""
+    """Attach display-only payment state to lab orders for templates.
+
+    Performance note: this used to do `Invoice.objects.filter(...).first()`
+    per order — an N+1. We now fetch all invoices for the orders' encounters
+    in a single query and map by encounter_id, so a queue of 30 orders does
+    1 invoice query instead of 30.
+    """
     order_list = list(orders)
+    if not order_list:
+        return order_list
+    try:
+        from apps.billing.models import Invoice
+        encounter_ids = {o.encounter_id for o in order_list if o.encounter_id}
+        invoice_by_enc = {}
+        if encounter_ids:
+            for inv in Invoice.objects.filter(encounter_id__in=encounter_ids):
+                # An encounter has at most one invoice; if multiple, keep first.
+                invoice_by_enc.setdefault(inv.encounter_id, inv)
+    except Exception:
+        invoice_by_enc = {}
+
     for order in order_list:
-        invoice = _invoice_for_order(order)
+        invoice = invoice_by_enc.get(order.encounter_id)
         order.payment_invoice = invoice
         order.payment_is_paid = _invoice_is_paid(invoice)
         order.payment_balance_tzs = invoice.balance_tzs if invoice is not None else 0

@@ -70,6 +70,23 @@
             </div>
             {% trans "Edit Record" %}
         </a>
+        {% if user.role_code != 'COUNSELLOR' %}
+        <form method="post" action="{% url 'encounters:refer_mh' patient.pk %}" class="block">
+            {% csrf_token %}
+            <button type="submit"
+                    onclick="return confirm('{% trans "Refer this patient to a psychologist? A 5,000 TZS mental health consultation invoice will be created." %}')"
+                    class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all text-left"
+                    id="sidebar-refer-mh">
+                <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <span>{% trans "Refer to psychologist" %}</span>
+            </button>
+        </form>
+        {% endif %}
     </nav>
 </div>
 {% endblock %}
@@ -149,6 +166,33 @@
 {% endblock %}
 
 {% block content %}
+{% if request.GET.intent == 'follow_up' and not open_draft and user.role_code in 'NURSE,CLINICIAN,COUNSELLOR,ADMIN' %}
+<div class="mb-4 flex items-center justify-between gap-3 rounded-2xl border-2 border-primary-200 bg-primary-50 px-4 py-3 shadow-sm" id="follow-up-banner">
+    <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </div>
+        <div class="min-w-0">
+            <p class="text-sm font-semibold text-primary-700">{% trans "Returning patient" %}</p>
+            <p class="text-xs text-primary-700/80">{% trans "Review the history below, then start a new follow-up consultation." %}</p>
+        </div>
+    </div>
+    {% if user.role_code != 'COUNSELLOR' %}
+    <a href="{% url 'encounters:new' %}?patient={{ patient.pk }}"
+       class="shrink-0 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors"
+       id="btn-start-follow-up">
+        {% trans "Start follow-up consult" %} →
+    </a>
+    {% else %}
+    <a href="{% url 'encounters:new_mh' %}?patient={{ patient.pk }}"
+       class="shrink-0 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors"
+       id="btn-start-follow-up-mh">
+        {% trans "Start mental health consult" %} →
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if open_draft %}
 <div class="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3" id="open-draft-banner">
     <div class="flex items-center gap-3">

@@ -8,4 +8,5 @@ urlpatterns = [
     path("notifications/badge/", views.notifications_badge, name="notifications_badge"),
     path("notifications/<uuid:pk>/read/", views.notifications_mark_read, name="notifications_mark_read"),
     path("notifications/read-all/", views.notifications_mark_all_read, name="notifications_mark_all_read"),
+    path("my-activity/", views.my_activity, name="my_activity"),
 ]
