@@ -26,10 +26,11 @@ def _queue_status_counts():
 
     Used by both the main queue page and the HTMX poll endpoint so the
     numbers stay consistent and we don't run 4 separate COUNT queries.
+    Excludes CANCELLED appointments.
     """
     from django.db.models import Count, Q
     today = timezone.localdate()
-    row = Appointment.objects.filter(scheduled_start__date=today).aggregate(
+    row = Appointment.objects.filter(scheduled_start__date=today).exclude(status="CANCELLED").aggregate(
         waiting=Count("id", filter=Q(status="SCHEDULED")),
         checked_in=Count("id", filter=Q(status="CHECKED_IN")),
         in_consult=Count("id", filter=Q(status="IN_CONSULT")),
@@ -47,6 +48,8 @@ def queue_view(request):
     'Take Vitals' (consultation has been paid, ready for triage).
     """
     today = timezone.localdate()
+    # All users (receptionist, nurse, clinician, admin) see the full queue for today.
+    # Access control is enforced at the view level via @login_required.
     queue = list(
         Appointment.objects.filter(scheduled_start__date=today)
         .exclude(status="CANCELLED")

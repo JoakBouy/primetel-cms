@@ -51,20 +51,21 @@ def dashboard(request):
 
     # ── Encounters scope: patients-seen, volume chart, top diagnoses ──
     if nav.get("encounters"):
-        context["patients_seen_today"] = Encounter.objects.filter(started_at__gte=start_of_day).count()
+        user_encounters = Encounter.objects.for_user(request.user)
+        context["patients_seen_today"] = user_encounters.filter(started_at__gte=start_of_day).count()
 
         chart_labels, chart_data = [], []
         for i in range(6, -1, -1):
             day = today - timedelta(days=i)
             start = timezone.make_aware(timezone.datetime.combine(day, timezone.datetime.min.time()))
             end = start + timedelta(days=1)
-            count = Encounter.objects.filter(started_at__gte=start, started_at__lt=end).count()
+            count = user_encounters.filter(started_at__gte=start, started_at__lt=end).count()
             chart_labels.append(day.strftime("%a"))
             chart_data.append(count)
         context["chart_labels"] = chart_labels
         context["chart_data"] = chart_data
 
-        recent_dx = Diagnosis.objects.filter(encounter__started_at__gte=seven_days_ago)
+        recent_dx = Diagnosis.objects.filter(encounter__in=user_encounters, encounter__started_at__gte=seven_days_ago)
         top_diagnoses = list(
             recent_dx.exclude(icd10_code="")
             .values('icd10_code', 'description')

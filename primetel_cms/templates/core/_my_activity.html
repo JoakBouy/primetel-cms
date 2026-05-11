@@ -1,11 +1,11 @@
-{% load i18n %}
+{% load i18n audit_filters %}
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
     <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
         <div>
             <h3 class="text-sm font-semibold text-slate-700">{% trans "My activity today" %}</h3>
-            <p class="text-[11px] text-slate-400">{% trans "Things you've done since midnight" %}</p>
+            <p class="text-[11px] text-slate-400">{% trans "Actions and records you've accessed" %}</p>
         </div>
-        <span class="text-[10px] font-mono text-slate-400">{{ today_start|date:"d M" }}</span>
+        <span class="text-[10px] text-slate-400">{{ today_start|date:"d M" }}</span>
     </div>
     {% if activity %}
     <ul class="divide-y divide-slate-100 max-h-96 overflow-y-auto">
@@ -20,22 +20,14 @@
                     {% else %}bg-slate-400{% endif %}"></span>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-slate-700">
-                        <span class="font-semibold">
-                            {% if a.action == 'CREATE' %}{% trans "Added" %}
-                            {% elif a.action == 'UPDATE' %}{% trans "Updated" %}
-                            {% elif a.action == 'DELETE' %}{% trans "Removed" %}
-                            {% elif a.action == 'READ' %}{% trans "Opened" %}
-                            {% else %}{{ a.action|title }}{% endif %}
-                        </span>
-                        <span class="text-slate-500">{{ a.entity_type }}</span>
+                        <span class="font-semibold">{{ a.action|human_action }}</span>
+                        <span class="text-slate-500">{{ a.entity_type|human_entity_type }}</span>
                         {% if a.metadata.change %}
                         <span class="text-[10px] text-slate-400">· {{ a.metadata.change }}</span>
                         {% endif %}
                     </p>
                     {% if a.metadata.reason %}
                     <p class="text-xs text-slate-500 mt-0.5 italic">"{{ a.metadata.reason|truncatechars:80 }}"</p>
-                    {% elif a.metadata.path %}
-                    <p class="text-[10px] text-slate-400 mt-0.5 font-mono truncate">{{ a.metadata.path }}</p>
                     {% endif %}
                 </div>
                 <span class="text-[10px] text-slate-400 shrink-0">{{ a.timestamp|time:"H:i" }}</span>
