@@ -160,16 +160,54 @@ def follow_up_picker(request):
     })
 
 
-@requires_role("CLINICIAN", "ADMIN")
+def _patient_has_paid_prepay(patient) -> bool:
+    """True if the patient has a paid consultation invoice that has not yet
+    been attached to an encounter — i.e. they paid up front at reception and
+    are waiting to be seen.
+
+    Used to let a NURSE start a triage encounter for that patient. The
+    encounter, once created, will attach to this invoice via auto_charge so
+    no second consultation charge is generated.
+    """
+    from apps.billing.models import Invoice
+    return Invoice.objects.filter(
+        patient=patient,
+        encounter__isnull=True,
+        status="PAID",
+    ).exists()
+
+
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
 def encounter_new(request):
     """Start a new encounter for a patient — or resume an open draft.
 
-    Nurses cannot initiate encounters: the patient must first be billed at
-    reception. After payment clears, the clinician opens the encounter and
-    sees the patient.
+    Two pathways are allowed:
+      • CLINICIAN/ADMIN: anytime. If the patient has a paid prepay invoice,
+        the encounter attaches to it; otherwise auto_charge creates one.
+      • NURSE: only when the patient has a PAID prepay invoice on file
+        (i.e. reception already collected the consultation fee). The nurse
+        starts the encounter for triage / vitals only — the SOAP, diagnosis,
+        prescription and lab-order endpoints stay clinician-gated, so the
+        nurse cannot do clinical work.
+
+    A nurse who tries to start an encounter on an unpaid patient gets a
+    flash redirect back to the queue with a clear "send to billing" message.
     """
     patient_pk = request.GET.get("patient")
     patient = get_object_or_404(Patient, pk=patient_pk)
+    # NURSE pathway is gated: they can only initiate a triage encounter on a
+    # patient who already paid the consultation fee at reception.
+    is_nurse = (
+        not request.user.is_superuser
+        and getattr(request.user.role, "code", None) == "NURSE"
+    )
+    if is_nurse and not _patient_has_paid_prepay(patient):
+        messages.error(
+            request,
+            _("This patient has not paid yet. Click 'Send to billing' first; once payment is recorded you can begin triage."),
+        )
+        return redirect("appointments:queue")
+
     # If the patient already has an open (DRAFT) general/follow-up encounter, resume it
     # instead of silently creating a duplicate. This is what makes "Anza Consult" idempotent.
     existing = (
@@ -191,11 +229,15 @@ def encounter_new(request):
             chief_complaint=request.POST.get("chief_complaint", ""),
             created_by=request.user,
         )
-        # Auto-charge the consultation as a draft invoice (5000 new / 3000 follow-up).
+        # Auto-charge the consultation. If a prepay invoice already exists
+        # for this patient, auto_charge attaches the encounter to it instead
+        # of generating a duplicate charge.
         try:
             from apps.billing.consultation import auto_charge
             inv = auto_charge(encounter, request.user)
-            if inv is not None:
+            # Only ping reception about a *new* unpaid invoice. A prepaid
+            # invoice (status PAID, balance 0) doesn't need collection.
+            if inv is not None and inv.status not in ("PAID", "WAIVED") and inv.balance_tzs > 0:
                 _notify_billing_for_new_invoice(inv, request.user)
         except Exception:
             # Never block clinical work on a billing hiccup.

@@ -137,16 +137,73 @@ def test_finalised_encounter_blocks_vitals_via_view(client, encounter, nurse, cl
 
 
 @pytest.mark.django_db
-def test_nurse_cannot_start_encounter_pay_first_flow(client, nurse, patient):
-    """Under the pay-first workflow, nurses cannot create encounters at all.
-
-    The encounter is created by the clinician after reception records payment.
-    """
+def test_nurse_blocked_from_encounter_until_patient_pays(client, nurse, patient):
+    """Without a paid prepay invoice, a nurse trying to start an encounter
+    is redirected back to the queue with an error and no encounter is
+    created. (The nurse must use 'Send to billing' first.)"""
     client.force_login(nurse)
     resp = client.get(reverse("encounters:new") + f"?patient={patient.pk}")
-    assert resp.status_code == 403
-    # No encounter was created.
+    assert resp.status_code == 302  # redirected back to queue
+    assert "/appointments/queue/" in resp.headers.get("Location", "")
     assert not Encounter.objects.filter(patient=patient).exists()
+
+
+@pytest.mark.django_db
+def test_nurse_can_start_triage_after_payment_clears(client, nurse, patient, clinician):
+    """When reception has recorded a paid consultation invoice (encounter=null
+    + status=PAID), the nurse can start the encounter for triage. The new
+    encounter attaches to the paid invoice — no double charge."""
+    from apps.billing.models import Invoice, InvoiceLine, Payment
+    from decimal import Decimal as _D
+
+    inv = Invoice.objects.create(
+        patient=patient, encounter=None, issued_by=clinician, created_by=clinician,
+    )
+    InvoiceLine.objects.create(
+        invoice=inv, description="Consult prepay",
+        quantity=_D("1"), unit_price_tzs=_D("5000"),
+    )
+    inv.recalculate()
+    inv.status = "ISSUED"
+    inv.save(update_fields=["status"])
+    Payment.objects.create(
+        invoice=inv, method="CASH", amount_tzs=_D("5000"),
+        received_by=clinician, created_by=clinician,
+    )
+    inv.refresh_from_db()
+    assert inv.status == "PAID"
+
+    client.force_login(nurse)
+    resp = client.post(
+        reverse("encounters:new") + f"?patient={patient.pk}",
+        data={"encounter_type": "GENERAL", "chief_complaint": "Triage"},
+    )
+    assert resp.status_code == 302
+    encounter = Encounter.objects.get(patient=patient)
+    # The encounter attached to the existing paid invoice — no duplicate.
+    inv.refresh_from_db()
+    assert inv.encounter_id == encounter.pk
+    assert Invoice.objects.filter(patient=patient).count() == 1
+
+
+@pytest.mark.django_db
+def test_nurse_cannot_finalise_or_diagnose_even_after_payment(client, nurse, patient, clinician):
+    """Even on an encounter the nurse started, they cannot finalise, write
+    SOAP, add diagnoses, prescribe, or order labs. Only vitals."""
+    encounter = Encounter.objects.create(
+        patient=patient, clinician=clinician,
+        encounter_type="GENERAL", chief_complaint="x", assessment="y",
+    )
+    client.force_login(nurse)
+    # Add diagnosis → 403
+    resp = client.post(
+        reverse("encounters:add_diagnosis", args=[encounter.pk]),
+        data={"description": "Tension headache"},
+    )
+    assert resp.status_code == 403
+    # Finalise → 403
+    resp = client.post(reverse("encounters:finalise", args=[encounter.pk]))
+    assert resp.status_code == 403
 
 
 @pytest.mark.django_db

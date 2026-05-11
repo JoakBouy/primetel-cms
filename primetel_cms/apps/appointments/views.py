@@ -21,28 +21,74 @@ from .models import Appointment, AppointmentType
 User = get_user_model()
 
 
+def _queue_status_counts():
+    """Single aggregate query returning today's count per status.
+
+    Used by both the main queue page and the HTMX poll endpoint so the
+    numbers stay consistent and we don't run 4 separate COUNT queries.
+    """
+    from django.db.models import Count, Q
+    today = timezone.localdate()
+    row = Appointment.objects.filter(scheduled_start__date=today).aggregate(
+        waiting=Count("id", filter=Q(status="SCHEDULED")),
+        checked_in=Count("id", filter=Q(status="CHECKED_IN")),
+        in_consult=Count("id", filter=Q(status="IN_CONSULT")),
+        completed=Count("id", filter=Q(status="COMPLETED")),
+    )
+    return row
+
+
 @login_required
 def queue_view(request):
-    """Today's queue — the receptionist's main screen."""
-    today = timezone.localdate()
-    queue = Appointment.objects.filter(
-        scheduled_start__date=today
-    ).exclude(status="CANCELLED").select_related("patient", "clinician", "appointment_type").order_by("scheduled_start")
+    """Today's queue — the receptionist's main screen.
 
-    # Group by status
-    checked_in = queue.filter(status="CHECKED_IN")
-    in_consult = queue.filter(status="IN_CONSULT")
-    waiting = queue.filter(status="SCHEDULED")
-    completed = queue.filter(status="COMPLETED")
+    Each row is annotated with `has_paid_prepay` so the UI can flip the
+    nurse's button between 'Send to billing' (no paid invoice yet) and
+    'Take Vitals' (consultation has been paid, ready for triage).
+    """
+    today = timezone.localdate()
+    queue = list(
+        Appointment.objects.filter(scheduled_start__date=today)
+        .exclude(status="CANCELLED")
+        .select_related("patient", "clinician", "appointment_type")
+        .order_by("scheduled_start")
+    )
+
+    # One query for paid prepay invoices belonging to the patients in this
+    # queue. Batched so we don't N+1.
+    if queue:
+        from apps.billing.models import Invoice
+        patient_ids = {apt.patient_id for apt in queue}
+        paid_prepay_patient_ids = set(
+            Invoice.objects.filter(
+                patient_id__in=patient_ids,
+                encounter__isnull=True,
+                status="PAID",
+            ).values_list("patient_id", flat=True)
+        )
+        for apt in queue:
+            apt.has_paid_prepay = apt.patient_id in paid_prepay_patient_ids
+
+    counts = _queue_status_counts()
 
     return render(request, "appointments/queue.html", {
         "page_title": _("Today's Queue"),
         "queue": queue,
-        "checked_in": checked_in,
-        "in_consult": in_consult,
-        "waiting": waiting,
-        "completed": completed,
+        "counts": counts,
         "today": today,
+    })
+
+
+@login_required
+def queue_summary(request):
+    """HTMX endpoint: returns just the 4-tile summary row.
+
+    Polled every 15s by the queue page, and re-triggered after any
+    check-in / send-to-billing / check-out action so the user sees
+    instantaneous feedback.
+    """
+    return render(request, "appointments/_queue_summary.html", {
+        "counts": _queue_status_counts(),
     })
 
 

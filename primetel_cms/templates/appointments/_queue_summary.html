@@ -1,0 +1,19 @@
+{% load i18n %}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-center">
+        <p class="text-2xl font-bold text-amber-700" id="count-waiting">{{ counts.waiting|default:0 }}</p>
+        <p class="text-xs text-amber-600">{% trans "Waiting" %}</p>
+    </div>
+    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-center">
+        <p class="text-2xl font-bold text-blue-700" id="count-checked-in">{{ counts.checked_in|default:0 }}</p>
+        <p class="text-xs text-blue-600">{% trans "Checked In" %}</p>
+    </div>
+    <div class="bg-green-50 border border-green-100 rounded-2xl p-4 text-center">
+        <p class="text-2xl font-bold text-green-700" id="count-in-consult">{{ counts.in_consult|default:0 }}</p>
+        <p class="text-xs text-green-600">{% trans "In Consult" %}</p>
+    </div>
+    <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center">
+        <p class="text-2xl font-bold text-slate-600" id="count-completed">{{ counts.completed|default:0 }}</p>
+        <p class="text-xs text-slate-500">{% trans "Completed" %}</p>
+    </div>
+</div>

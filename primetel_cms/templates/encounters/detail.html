@@ -34,6 +34,7 @@
                 </button>
             </form>
             {% endif %}
+            {% if user.role_code != "NURSE" %}
             <form method="POST" action="{% url 'encounters:finalise' encounter.pk %}">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-success text-sm" id="btn-finalise"
@@ -42,6 +43,7 @@
                     {% trans "Finalise" %}
                 </button>
             </form>
+            {% endif %}
             {% elif encounter.status == "FINALISED" %}
             <div x-data="{ showAmend: false }" class="relative">
                 <button type="button" @click="showAmend = true" class="btn btn-outline text-sm" id="btn-amend">
@@ -119,7 +121,7 @@
                 <textarea name="chief_complaint" rows="2"
                           class="form-textarea"
                           placeholder="{% trans 'What brought the patient in today?' %}"
-                          {% if encounter.status == "FINALISED" %}readonly{% endif %}
+                          {% if encounter.status == "FINALISED" or user.role_code == "NURSE" %}readonly{% endif %}
                           id="cc">{{ encounter.chief_complaint }}</textarea>
             </div>
 
@@ -132,22 +134,22 @@
                     <!-- S -->
                     <div>
                         <label class="block text-xs font-semibold text-primary-600 mb-1.5 uppercase tracking-wide">S — {% trans "Subjective" %}</label>
-                        <textarea name="subjective" rows="3" class="form-textarea" placeholder="{% trans 'Patient history, symptoms in their own words…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-s">{{ encounter.subjective }}</textarea>
+                        <textarea name="subjective" rows="3" class="form-textarea" placeholder="{% trans 'Patient history, symptoms in their own words…' %}" {% if encounter.status == "FINALISED" or user.role_code == "NURSE" %}readonly{% endif %} id="soap-s">{{ encounter.subjective }}</textarea>
                     </div>
                     <!-- O -->
                     <div>
                         <label class="block text-xs font-semibold text-success-500 mb-1.5 uppercase tracking-wide">O — {% trans "Objective" %}</label>
-                        <textarea name="objective" rows="3" class="form-textarea" placeholder="{% trans 'Examination findings, vitals, observations…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-o">{{ encounter.objective }}</textarea>
+                        <textarea name="objective" rows="3" class="form-textarea" placeholder="{% trans 'Examination findings, vitals, observations…' %}" {% if encounter.status == "FINALISED" or user.role_code == "NURSE" %}readonly{% endif %} id="soap-o">{{ encounter.objective }}</textarea>
                     </div>
                     <!-- A -->
                     <div>
                         <label class="block text-xs font-semibold text-warning-500 mb-1.5 uppercase tracking-wide">A — {% trans "Assessment" %}</label>
-                        <textarea name="assessment" rows="3" class="form-textarea" placeholder="{% trans 'Clinical assessment, differential diagnoses…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-a">{{ encounter.assessment }}</textarea>
+                        <textarea name="assessment" rows="3" class="form-textarea" placeholder="{% trans 'Clinical assessment, differential diagnoses…' %}" {% if encounter.status == "FINALISED" or user.role_code == "NURSE" %}readonly{% endif %} id="soap-a">{{ encounter.assessment }}</textarea>
                     </div>
                     <!-- P -->
                     <div>
                         <label class="block text-xs font-semibold text-danger-500 mb-1.5 uppercase tracking-wide">P — {% trans "Plan" %}</label>
-                        <textarea name="plan" rows="3" class="form-textarea" placeholder="{% trans 'Treatment plan, prescriptions, lab orders, follow-up…' %}" {% if encounter.status == "FINALISED" %}readonly{% endif %} id="soap-p">{{ encounter.plan }}</textarea>
+                        <textarea name="plan" rows="3" class="form-textarea" placeholder="{% trans 'Treatment plan, prescriptions, lab orders, follow-up…' %}" {% if encounter.status == "FINALISED" or user.role_code == "NURSE" %}readonly{% endif %} id="soap-p">{{ encounter.plan }}</textarea>
                     </div>
                 </div>
             </div>
@@ -229,7 +231,7 @@
                 {% include "encounters/partials/diagnosis_list.html" %}
             </div>
 
-            {% if encounter.status != "FINALISED" %}
+            {% if encounter.status != "FINALISED" and user.role_code != "NURSE" %}
             <div class="px-5 pb-5" x-data="{ showDxForm: false }">
                 <button @click="showDxForm = !showDxForm" class="w-full py-2 text-xs font-medium text-primary-500 hover:bg-primary-50 rounded-lg transition-colors" id="btn-add-dx">
                     + {% trans "Add Diagnosis" %}
