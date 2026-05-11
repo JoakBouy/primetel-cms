@@ -109,6 +109,14 @@ def appointment_new(request):
     if request.method == "POST":
         patient_id = request.POST.get("patient_id")
         if not patient_id:
+            # If the user entered an exact existing patient number but didn't
+            # select the result row, reuse that patient instead of failing.
+            input_value = (request.POST.get("q") or "").strip()
+            if input_value:
+                patient_match = Patient.objects.filter(patient_number__iexact=input_value).first()
+                if patient_match:
+                    patient_id = patient_match.pk
+        if not patient_id:
             messages.error(request, _("Please select a patient."))
             return redirect(request.path + (f"?patient={patient_pk}" if patient_pk else ""))
         patient = get_object_or_404(Patient, pk=patient_id)
@@ -164,7 +172,10 @@ def appointment_new(request):
 def patient_picker(request):
     """HTMX patient search — returns clickable rows that fill #patient_id."""
     query = (request.GET.get("q") or "").strip()
-    patients = Patient.objects.search(query)[:20] if query else []
+    if query:
+        patients = Patient.objects.search(query)[:20]
+    else:
+        patients = Patient.objects.order_by("-updated_at")[:20]
     return render(request, "appointments/partials/patient_picker.html", {
         "patients": patients,
         "query": query,

@@ -1,6 +1,7 @@
 {% load i18n %}
 {% if query %}
     {% if patients %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs uppercase tracking-wide text-slate-500">{% trans "Search results" %}</div>
     <ul class="divide-y divide-slate-100 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         {% for p in patients %}
         <li>
@@ -19,5 +20,27 @@
     </ul>
     {% else %}
     <p class="text-xs text-slate-400 px-3 py-3">{% trans "No matches. Try another name, phone, or patient number." %}</p>
+    {% endif %}
+{% else %}
+    {% if patients %}
+    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs uppercase tracking-wide text-slate-500">{% trans "Recent patients" %}</div>
+    <ul class="divide-y divide-slate-100 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        {% for p in patients %}
+        <li>
+            <button type="button"
+                    class="w-full text-left px-4 py-2.5 hover:bg-primary-50 focus:bg-primary-50 transition-colors flex items-center justify-between gap-3"
+                    onclick="selectPatient('{{ p.pk }}', '{{ p.full_name|escapejs }}', '{{ p.patient_number|escapejs }}')"
+                    id="pick-{{ p.pk }}">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">{{ p.full_name }}</p>
+                    <p class="text-xs text-slate-500">{{ p.age_display }} · {{ p.get_sex_display }}{% if p.phone %} · <span class="font-mono">{{ p.phone }}</span>{% endif %}</p>
+                </div>
+                <span class="font-mono text-xs text-primary-600 bg-primary-50 px-2 py-0.5 rounded-lg shrink-0">{{ p.patient_number }}</span>
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-xs text-slate-400 px-3 py-3">{% trans "No recent patients available. Start typing to search." %}</p>
     {% endif %}
 {% endif %}
