@@ -112,6 +112,12 @@ class Encounter(TimestampedModel):
         max_length=5, choices=LANGUAGE_CHOICES, default="mixed"
     )
 
+    no_prescription_needed = models.BooleanField(
+        _("No Prescription Needed"),
+        default=False,
+        help_text=_("Explicitly mark that this encounter does not require any prescriptions."),
+    )
+
     history = HistoricalRecords()
 
     # Managers

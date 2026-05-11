@@ -29,6 +29,7 @@ def _queue_status_counts():
     Excludes CANCELLED appointments.
     """
     from django.db.models import Count, Q
+    from django.utils import timezone
     today = timezone.localdate()
     row = Appointment.objects.filter(scheduled_start__date=today).exclude(status="CANCELLED").aggregate(
         waiting=Count("id", filter=Q(status="SCHEDULED")),
@@ -36,7 +37,7 @@ def _queue_status_counts():
         in_consult=Count("id", filter=Q(status="IN_CONSULT")),
         completed=Count("id", filter=Q(status="COMPLETED")),
     )
-    return row
+    return row or {"waiting": 0, "checked_in": 0, "in_consult": 0, "completed": 0}
 
 
 @login_required
@@ -46,14 +47,17 @@ def queue_view(request):
     Each row is annotated with `has_paid_prepay` so the UI can flip the
     nurse's button between 'Send to billing' (no paid invoice yet) and
     'Take Vitals' (consultation has been paid, ready for triage).
+    
+    For ADMIN/RECEPTIONIST: all appointments for today.
+    For NURSE/CLINICIAN: all appointments for today (they can see the shared queue).
     """
     today = timezone.localdate()
-    # All users (receptionist, nurse, clinician, admin) see the full queue for today.
-    # Access control is enforced at the view level via @login_required.
+    qs = Appointment.objects.filter(scheduled_start__date=today).exclude(status="CANCELLED")
+    
+    # All authenticated users see the full queue; access control is role-based
+    # at the view decorator level if needed, but currently all see shared queue
     queue = list(
-        Appointment.objects.filter(scheduled_start__date=today)
-        .exclude(status="CANCELLED")
-        .select_related("patient", "clinician", "appointment_type")
+        qs.select_related("patient", "clinician", "appointment_type")
         .order_by("scheduled_start")
     )
 

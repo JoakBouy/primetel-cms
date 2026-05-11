@@ -262,14 +262,22 @@
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Prescriptions" %}</h3>
                 {% if encounter.status != "FINALISED" %}
                 {% if consultation_paid %}
+                {% if encounter.no_prescription_needed %}
+                <span class="text-xs text-success-600 font-medium">✅ {% trans "Not needed" %}</span>
+                {% else %}
                 <a href="{% url 'pharmacy:rx_prescribe' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-prescribe">+ {% trans "Prescribe" %}</a>
+                {% endif %}
                 {% else %}
                 <span class="text-xs text-slate-400" title="{% trans 'Awaiting payment' %}">🔒 {% trans "Locked" %}</span>
                 {% endif %}
                 {% endif %}
             </div>
             <div class="p-5">
-                {% if prescriptions %}
+                {% if encounter.no_prescription_needed %}
+                <div class="bg-success-50 border border-success-200 rounded-xl p-4 text-center">
+                    <p class="text-xs font-medium text-success-700">✅ {% trans "No prescription needed — documented by clinician" %}</p>
+                </div>
+                {% elif prescriptions %}
                 <div class="space-y-2">
                     {% for rx in prescriptions %}
                     <div class="p-2 bg-slate-50 rounded-lg" x-data="{ showCancel: false }">
@@ -296,6 +304,21 @@
                 </div>
                 {% else %}
                 <p class="text-xs text-slate-400 text-center py-3">{% trans "No prescriptions" %}</p>
+                {% endif %}
+
+                {% if encounter.status != "FINALISED" and user.role_code != "NURSE" %}
+                <div class="mt-3 pt-3 border-t border-slate-100">
+                    <form method="POST" action="{% url 'encounters:toggle_no_prescription' encounter.pk %}">
+                        {% csrf_token %}
+                        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-600 hover:text-slate-800">
+                            <input type="checkbox" name="no_prescription_needed" value="on"
+                                   {% if encounter.no_prescription_needed %}checked{% endif %}
+                                   onchange="this.form.submit()"
+                                   class="rounded text-success-500 focus:ring-success-400">
+                            <span>{% trans "Patient does not need a prescription" %}</span>
+                        </label>
+                    </form>
+                </div>
                 {% endif %}
             </div>
         </div>

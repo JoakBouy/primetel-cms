@@ -22,4 +22,5 @@ urlpatterns = [
     path("vitals/<uuid:pk>/delete/", views.vitals_delete, name="vitals_delete"),
     path("diagnosis/<uuid:pk>/edit/", views.diagnosis_edit, name="diagnosis_edit"),
     path("diagnosis/<uuid:pk>/delete/", views.diagnosis_delete, name="diagnosis_delete"),
+    path("<uuid:pk>/toggle-no-prescription/", views.encounter_toggle_no_prescription, name="toggle_no_prescription"),
 ]

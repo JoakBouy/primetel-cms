@@ -1,0 +1,118 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} | {{ site_title }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="px-4">
+    <a href="{% url 'admin:index' %}">Admin</a> &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 920px; margin: 0 auto;">
+
+    <div style="background:#FEF2F2; border:2px solid #FCA5A5; border-radius:12px; padding:20px; margin-bottom:24px;">
+        <h2 style="margin-top:0; color:#991B1B;">⚠ Danger zone — factory reset</h2>
+        <p style="color:#7F1D1D; margin-bottom:0;">
+            This permanently deletes all <strong>patients, appointments, encounters, prescriptions,
+            lab orders, invoices, notifications, and the entire drug + lab + service catalogues</strong>.
+            User accounts and role assignments are preserved, so staff can keep logging in.
+        </p>
+        <p style="color:#7F1D1D; margin-top:8px; margin-bottom:0;">
+            <strong>This cannot be undone.</strong> The action is wrapped in a transaction, but once
+            committed the data is gone — there is no built-in restore button. Make sure you have a
+            Supabase backup if you need a way back.
+        </p>
+        {% if is_production %}
+        <p style="color:#7F1D1D; margin-top:8px; margin-bottom:0;">
+            <strong>You are on a production host.</strong> Double-check this is what you want.
+        </p>
+        {% endif %}
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div style="padding:12px 16px; border-radius:8px; margin-bottom:16px;
+                background: {% if message.tags == 'error' %}#FEE2E2{% else %}#D1FAE5{% endif %};
+                color: {% if message.tags == 'error' %}#991B1B{% else %}#065F46{% endif %};">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div style="background:white; border:1px solid #E5E7EB; border-radius:12px; padding:20px; margin-bottom:24px;">
+        <h3 style="margin-top:0;">What will be deleted</h3>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#F9FAFB; text-align:left;">
+                    <th style="padding:8px 12px; border-bottom:1px solid #E5E7EB;">Model</th>
+                    <th style="padding:8px 12px; border-bottom:1px solid #E5E7EB; text-align:right;">Live rows</th>
+                    <th style="padding:8px 12px; border-bottom:1px solid #E5E7EB; text-align:right;">History rows</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app_label, model_name, live, history in plan %}
+                <tr>
+                    <td style="padding:8px 12px; border-bottom:1px solid #F3F4F6; font-family:monospace; font-size:12px;">
+                        {{ app_label }}.{{ model_name }}
+                    </td>
+                    <td style="padding:8px 12px; border-bottom:1px solid #F3F4F6; text-align:right; font-weight:600;">
+                        {{ live }}
+                    </td>
+                    <td style="padding:8px 12px; border-bottom:1px solid #F3F4F6; text-align:right; color:#6B7280;">
+                        {{ history|default_if_none:"—" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="background:#FEF2F2; font-weight:700;">
+                    <td style="padding:8px 12px;">Total</td>
+                    <td style="padding:8px 12px; text-align:right;">{{ live_total }}</td>
+                    <td style="padding:8px 12px; text-align:right;">{{ history_total }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div style="background:#F0FDF4; border:1px solid #86EFAC; border-radius:12px; padding:20px; margin-bottom:24px;">
+        <h3 style="margin-top:0; color:#14532D;">What stays</h3>
+        <ul style="margin:0; padding-left:20px; color:#166534;">
+            <li><strong>{{ kept.users }}</strong> user account{{ kept.users|pluralize }} (so staff can log in)</li>
+            <li><strong>{{ kept.roles }}</strong> role record{{ kept.roles|pluralize }} (so permissions still apply)</li>
+            <li>Migrations, sessions, admin log, content types</li>
+        </ul>
+    </div>
+
+    <div style="background:white; border:2px solid #DC2626; border-radius:12px; padding:20px;">
+        <h3 style="margin-top:0; color:#991B1B;">Confirm</h3>
+        <form method="post">
+            {% csrf_token %}
+            <label for="confirm_phrase" style="display:block; font-weight:600; margin-bottom:8px;">
+                Type <code style="background:#F3F4F6; padding:2px 6px; border-radius:4px;">{{ confirm_phrase }}</code>
+                exactly to proceed:
+            </label>
+            <input type="text" name="confirm_phrase" id="confirm_phrase"
+                   autocomplete="off" required
+                   style="width:240px; padding:10px 12px; border:1px solid #D1D5DB; border-radius:8px;
+                          font-size:16px; font-family:monospace;"
+                   placeholder="{{ confirm_phrase }}">
+            <div style="margin-top:16px; display:flex; gap:12px;">
+                <button type="submit"
+                        style="background:#DC2626; color:white; padding:10px 20px; border:0;
+                               border-radius:8px; font-weight:600; cursor:pointer;"
+                        onclick="return confirm('Last warning — wipe ALL data? Users and roles will be kept.')">
+                    Wipe everything
+                </button>
+                <a href="{% url 'admin:index' %}"
+                   style="padding:10px 20px; color:#374151; text-decoration:none;
+                          border:1px solid #D1D5DB; border-radius:8px;">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

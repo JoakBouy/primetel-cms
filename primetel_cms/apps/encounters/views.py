@@ -582,3 +582,26 @@ def diagnosis_delete(request, pk):
     if request.headers.get("HX-Request"):
         return render(request, "encounters/partials/diagnosis_list.html", {"diagnoses": encounter.diagnoses.all(), "encounter": encounter})
     return redirect("encounters:detail", pk=encounter.pk)
+
+
+@require_POST
+@requires_role("CLINICIAN", "ADMIN")
+def encounter_toggle_no_prescription(request, pk):
+    """Toggle the `no_prescription_needed` flag on an encounter.
+
+    When a clinician determines the patient does not need any medication,
+    they can check this box to explicitly document that decision and
+    hide the "Prescribe" button on the encounter detail page.
+    """
+    encounter = _get_encounter_for_user(request.user, pk)
+    if encounter.status == "FINALISED":
+        messages.error(request, _("Encounter is finalised. Reopen it to change prescription preferences."))
+        return redirect("encounters:detail", pk=pk)
+    value = request.POST.get("no_prescription_needed") == "on"
+    encounter.no_prescription_needed = value
+    encounter.updated_by = request.user
+    encounter.save(update_fields=["no_prescription_needed", "updated_by", "updated_at"])
+    verb = _("marked as not needing prescriptions") if value else _("prescriptions may now be prescribed")
+    _audit(request, "UPDATE", encounter, change="toggle_no_prescription_needed", value=value)
+    messages.success(request, _("This encounter has been %(verb)s.") % {"verb": verb})
+    return redirect("encounters:detail", pk=pk)
