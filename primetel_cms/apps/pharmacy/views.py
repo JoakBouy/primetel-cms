@@ -542,22 +542,6 @@ def stock_receive(request, drug_pk):
     })
 
 
-# ─── Drug toggle-active (soft delete / restore) ──────────────────
-
-@require_POST
-@requires_role("PHARMACY", "ADMIN")
-def drug_toggle_active(request, pk):
-    """Toggle a drug's active status (soft delete / restore)."""
-    drug = get_object_or_404(Drug, pk=pk)
-    drug.is_active = not drug.is_active
-    drug.save(update_fields=["is_active"])
-    if drug.is_active:
-        messages.success(request, _("Drug '%(n)s' reactivated.") % {"n": drug.generic_name})
-    else:
-        messages.success(request, _("Drug '%(n)s' deactivated.") % {"n": drug.generic_name})
-    return redirect("pharmacy:catalogue")
-
-
 @require_POST
 @requires_role("PHARMACY", "ADMIN")
 def drug_delete(request, pk):
