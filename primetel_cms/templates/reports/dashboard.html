@@ -83,6 +83,20 @@
     </div>
     {% endif %}
 
+    {% if user.is_superuser or user.role_code == "ADMIN" %}
+    <!-- Interactions Today -->
+    <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-interactions-today">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4V7M5 5h14v14H5z"/></svg>
+            </div>
+            <span class="text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">{% trans "Audit" %}</span>
+        </div>
+        <p class="text-3xl font-bold text-slate-800">{{ interactions_today|default:0 }}</p>
+        <p class="text-xs text-slate-400 mt-1">{% trans "Interactions captured today" %}</p>
+    </div>
+    {% endif %}
+
     {% if nav_visible.lab %}
     <!-- Pending Labs -->
     <div class="bg-white rounded-2xl border border-slate-100 p-5 shadow-card card-lift" id="metric-pending-labs">
@@ -203,6 +217,47 @@
             {% endif %}
         </div>
     </div>
+</div>
+{% endif %}
+
+{% if user.is_superuser or user.role_code == "ADMIN" %}
+<div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-card mt-6" id="panel-recent-interactions">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h3 class="text-sm font-semibold text-slate-800">{% trans "Recent Interactions" %}</h3>
+            <p class="text-xs text-slate-400 mt-0.5">{% trans "Captured from authenticated app activity" %}</p>
+        </div>
+    </div>
+    {% if recent_interactions %}
+    <div class="overflow-x-auto">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{% trans "Time" %}</th>
+                    <th>{% trans "User" %}</th>
+                    <th>{% trans "Action" %}</th>
+                    <th>{% trans "Entity" %}</th>
+                    <th>{% trans "Path" %}</th>
+                    <th>{% trans "Status" %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_interactions %}
+                <tr>
+                    <td class="text-xs text-slate-400">{{ log.timestamp|date:"d/m H:i" }}</td>
+                    <td class="text-sm text-slate-700">{{ log.actor.full_name|default:log.actor.username|default:"System" }}</td>
+                    <td><span class="badge badge-{{ log.action|lower }}">{{ log.get_action_display }}</span></td>
+                    <td class="text-xs text-slate-500">{{ log.entity_type }}</td>
+                    <td class="text-xs font-mono text-slate-500 truncate max-w-xs">{{ log.metadata.path|default:"-" }}</td>
+                    <td class="text-xs font-mono text-slate-500">{{ log.metadata.status_code|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-400 text-center py-6">{% trans "No interactions captured yet." %}</p>
+    {% endif %}
 </div>
 {% endif %}
 

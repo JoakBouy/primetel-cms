@@ -7,14 +7,14 @@
             <th>{% trans "Full Name" %}</th>
             <th>{% trans "Age / Sex" %}</th>
             <th>{% trans "Phone" %}</th>
-            <th>{% trans "District" %}</th>
+            <th>{% trans "Location" %}</th>
             <th>{% trans "Flags" %}</th>
             <th class="text-right">{% trans "Actions" %}</th>
         </tr>
     </thead>
     <tbody>
         {% for patient in patients %}
-        <tr class="hover:bg-primary-50/30 cursor-pointer" onclick="window.location='{% url 'patients:chart' patient.pk %}'">
+        <tr class="hover:bg-primary-50/30 {% if user.role_code != 'RECEPTIONIST' %}cursor-pointer{% endif %}" {% if user.role_code != 'RECEPTIONIST' %}onclick="window.location='{% url 'patients:chart' patient.pk %}'"{% endif %}>
             <td>
                 <span class="font-mono text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-lg">{{ patient.patient_number }}</span>
             </td>
@@ -23,7 +23,7 @@
                 {{ patient.age_display }}&nbsp;·&nbsp;{{ patient.get_sex_display }}
             </td>
             <td class="text-slate-500 text-sm font-mono">{{ patient.phone|default:"—" }}</td>
-            <td class="text-slate-500 text-sm">{{ patient.district }}</td>
+            <td class="text-slate-500 text-sm">{{ patient.location|default:patient.village|default:patient.district }}</td>
             <td>
                 <div class="flex flex-wrap gap-1">
                     {% if patient.is_minor %}
@@ -41,12 +41,27 @@
                 </div>
             </td>
             <td class="text-right">
+                {% if user.role_code == 'RECEPTIONIST' %}
+                <div class="inline-flex items-center justify-end gap-2">
+                    <a href="{% url 'billing:invoice_list' %}?patient={{ patient.pk }}"
+                       class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
+                       id="patient-invoices-{{ patient.pk }}">
+                        {% trans "Payments" %}
+                    </a>
+                    <a href="{% url 'billing:invoice_new' %}?patient={{ patient.pk }}"
+                       class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+                       id="patient-new-invoice-{{ patient.pk }}">
+                        {% trans "New invoice" %}
+                    </a>
+                </div>
+                {% else %}
                 <a href="{% url 'patients:chart' patient.pk %}"
                    class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors"
                    onclick="event.stopPropagation()"
                    id="view-patient-{{ patient.pk }}">
                     {% trans "View Chart" %} →
                 </a>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

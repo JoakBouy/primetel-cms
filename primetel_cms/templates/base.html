@@ -660,6 +660,56 @@
         // queue so they auto-dismiss after 5 seconds. CRITICAL items get longer
         // visibility because they need attention.
         const _seenToastIds = new Set();
+        let _notificationAudioContext = null;
+        let _notificationAudioUnlocked = false;
+
+        function unlockNotificationAudio() {
+            if (_notificationAudioUnlocked) return;
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            try {
+                _notificationAudioContext = _notificationAudioContext || new AudioCtx();
+                if (_notificationAudioContext.state === 'suspended') {
+                    _notificationAudioContext.resume();
+                }
+                _notificationAudioUnlocked = true;
+            } catch (e) {}
+        }
+
+        function playNotificationTone(type) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            try {
+                const ctx = _notificationAudioContext || new AudioCtx();
+                _notificationAudioContext = ctx;
+                if (ctx.state === 'suspended') ctx.resume();
+
+                const now = ctx.currentTime;
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(0.0001, now);
+                gain.gain.exponentialRampToValueAtTime(type === 'error' ? 0.12 : 0.08, now + 0.015);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+                gain.connect(ctx.destination);
+
+                const first = ctx.createOscillator();
+                first.type = 'sine';
+                first.frequency.setValueAtTime(type === 'error' ? 660 : 880, now);
+                first.connect(gain);
+                first.start(now);
+                first.stop(now + 0.16);
+
+                const second = ctx.createOscillator();
+                second.type = 'sine';
+                second.frequency.setValueAtTime(type === 'error' ? 440 : 1175, now + 0.11);
+                second.connect(gain);
+                second.start(now + 0.11);
+                second.stop(now + 0.28);
+            } catch (e) {}
+        }
+
+        window.addEventListener('pointerdown', unlockNotificationAudio, { once: true });
+        window.addEventListener('keydown', unlockNotificationAudio, { once: true });
+
         document.body.addEventListener('notify-toast', function(event) {
             // HTMX HX-Trigger with a list passes the array as event.detail.value.
             const items = Array.isArray(event.detail) ? event.detail
@@ -683,6 +733,7 @@
                         duration: type === 'error' ? 12000 : 5000,
                     }
                 }));
+                playNotificationTone(type);
             });
         });
 

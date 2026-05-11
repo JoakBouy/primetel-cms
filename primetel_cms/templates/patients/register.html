@@ -46,6 +46,16 @@
             <h2 class="text-sm font-semibold text-slate-800">{% trans "Identity" %}</h2>
         </div>
         <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <!-- Patient Number -->
+            <div class="sm:col-span-2">
+                <label for="id_patient_number" class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                    {% trans "Patient Number" %} <span class="text-slate-400 font-normal normal-case">({% trans "optional" %})</span>
+                </label>
+                {{ form.patient_number }}
+                <p class="mt-1 text-xs text-slate-400">{% trans "Use this when the patient already has a clinic number; otherwise a new number is generated." %}</p>
+                {% if form.patient_number.errors %}<p class="mt-1 text-xs text-danger-500">{{ form.patient_number.errors.0 }}</p>{% endif %}
+            </div>
+
             <!-- Full Name -->
             <div class="sm:col-span-2">
                 <label for="id_full_name" class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -121,6 +131,11 @@
             <div class="sm:col-span-2">
                 <label for="id_phone" class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">{% trans "Phone" %}</label>
                 {{ form.phone }}
+            </div>
+            <div class="sm:col-span-2">
+                <label for="id_location" class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">{% trans "Location" %}</label>
+                {{ form.location }}
+                {% if form.location.errors %}<p class="mt-1 text-xs text-danger-500">{{ form.location.errors.0 }}</p>{% endif %}
             </div>
             <div>
                 <label for="id_village" class="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">{% trans "Village" %}</label>

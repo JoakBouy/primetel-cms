@@ -24,6 +24,11 @@ def role_lab(db):
 
 
 @pytest.fixture
+def role_clinician(db):
+    return Role.objects.create(code="CLINICIAN", display_name="Clinician")
+
+
+@pytest.fixture
 def lab_user(db, role_lab):
     return User.objects.create_user(username="lab", password="pw", role=role_lab)
 
@@ -39,6 +44,11 @@ def clinician(db):
 
 
 @pytest.fixture
+def clinician_with_role(db, role_clinician):
+    return User.objects.create_user(username="clinrole", password="pw", role=role_clinician)
+
+
+@pytest.fixture
 def encounter(db, patient, clinician):
     return Encounter.objects.create(patient=patient, clinician=clinician)
 
@@ -49,6 +59,14 @@ def hgb_test(db):
         code="HGB", name="Haemoglobin", specimen_type="BLOOD",
         reference_range_min=Decimal("12"), reference_range_max=Decimal("16"),
         reference_unit="g/dL",
+    )
+
+
+@pytest.fixture
+def malaria_test(db):
+    return LabTest.objects.create(
+        code="MRDT", name="Malaria rapid test", specimen_type="BLOOD",
+        price_tzs=Decimal("2000"),
     )
 
 
@@ -148,6 +166,21 @@ def test_lab_print_uses_patient_number_label(order):
 
     assert "Patient No." in html
     assert order.encounter.patient.patient_number in html
+
+
+@pytest.mark.django_db
+def test_clinician_can_order_multiple_lab_tests(client, patient, clinician_with_role, hgb_test, malaria_test):
+    encounter = Encounter.objects.create(patient=patient, clinician=clinician_with_role)
+    client.force_login(clinician_with_role)
+
+    resp = client.post(
+        reverse("lab:order_new", args=[encounter.pk]),
+        data={"tests": [str(hgb_test.pk), str(malaria_test.pk)]},
+    )
+
+    assert resp.status_code == 302
+    assert LabOrder.objects.filter(encounter=encounter).count() == 2
+    assert set(LabOrder.objects.filter(encounter=encounter).values_list("test__code", flat=True)) == {"HGB", "MRDT"}
 
 
 @pytest.mark.django_db

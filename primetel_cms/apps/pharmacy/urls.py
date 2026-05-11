@@ -20,6 +20,7 @@ urlpatterns = [
     path("catalogue/new/", views.drug_create, name="drug_create"),
     path("drugs/<uuid:pk>/edit/", views.drug_edit, name="drug_edit"),
     path("drugs/<uuid:pk>/toggle/", views.drug_toggle_active, name="drug_toggle"),
+    path("drugs/<uuid:pk>/delete/", views.drug_delete, name="drug_delete"),
     path("drugs/<uuid:drug_pk>/receive/", views.stock_receive, name="stock_receive"),
     path("stock/<uuid:item_pk>/adjust/", views.stock_adjust, name="stock_adjust"),
     path("stock/<uuid:item_pk>/edit/", views.stock_edit, name="stock_edit"),

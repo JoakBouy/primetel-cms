@@ -283,48 +283,70 @@ def lab_cancel(request, pk):
 
 @requires_role("CLINICIAN", "ADMIN")
 def lab_order_new(request, encounter_pk):
-    """Order a lab test from an encounter."""
+    """Order one or more lab tests from an encounter."""
     encounter = get_object_or_404(Encounter.objects.for_user(request.user), pk=encounter_pk)
     if encounter.status == "FINALISED":
         messages.error(request, _("Encounter is finalised. Reopen it to order a test."))
         return redirect("encounters:detail", pk=encounter.pk)
     tests = LabTest.objects.filter(is_active=True).order_by("name")
     if request.method == "POST":
-        test = get_object_or_404(LabTest, pk=request.POST.get("test"))
-        order = LabOrder.objects.create(
-            encounter=encounter, test=test, ordered_by=request.user, created_by=request.user
-        )
-        invoice = _bill_lab_order(order)
-        if invoice is not None and test.price_tzs > 0:
+        test_ids = [pk for pk in (request.POST.getlist("tests") or request.POST.getlist("test")) if pk]
+        if not test_ids:
+            messages.error(request, _("Select at least one lab test."))
+            return redirect("lab:order_new", encounter_pk=encounter.pk)
+
+        selected_tests = list(LabTest.objects.filter(pk__in=test_ids, is_active=True).order_by("name"))
+        if len(selected_tests) != len(set(test_ids)):
+            messages.error(request, _("One or more selected tests could not be found."))
+            return redirect("lab:order_new", encounter_pk=encounter.pk)
+
+        created_orders = []
+        latest_invoice = None
+        total_billed = Decimal("0")
+        with transaction.atomic():
+            for test in selected_tests:
+                order = LabOrder.objects.create(
+                    encounter=encounter, test=test, ordered_by=request.user, created_by=request.user
+                )
+                created_orders.append(order)
+                latest_invoice = _bill_lab_order(order) or latest_invoice
+                total_billed += test.price_tzs or Decimal("0")
+
+        for order in created_orders:
+            notify_role(
+                "LAB",
+                exclude_actor=request.user,
+                kind="LAB_RESULT_READY",  # repurposed: "lab work to do"
+                level="INFO",
+                title=_("New lab order"),
+                body=f"{encounter.patient.full_name} · {order.test.code} {order.test.name}"
+                     + (str(_(" · payment due")) if latest_invoice is not None and not _invoice_is_paid(latest_invoice) else ""),
+                url=f"/lab/orders/{order.pk}/",
+                entity_type="LabOrder",
+                entity_id=order.pk,
+            )
+
+        if latest_invoice is not None and total_billed > 0:
             messages.success(
                 request,
-                _("Lab order placed and billed at %(p)s TZS.") % {"p": test.price_tzs},
+                _("%(count)s lab order(s) placed and billed at %(p)s TZS.")
+                % {"count": len(created_orders), "p": total_billed},
             )
         else:
-            messages.success(request, _("Lab order placed."))
-        notify_role(
-            "LAB",
-            exclude_actor=request.user,
-            kind="LAB_RESULT_READY",  # repurposed: "lab work to do"
-            level="INFO",
-            title=_("New lab order"),
-            body=f"{encounter.patient.full_name} · {test.code} {test.name}"
-                 + (str(_(" · payment due")) if invoice is not None and not _invoice_is_paid(invoice) else ""),
-            url=f"/lab/orders/{order.pk}/",
-            entity_type="LabOrder",
-            entity_id=order.pk,
-        )
-        if invoice is not None and invoice.balance_tzs > 0:
+            messages.success(request, _("%(count)s lab order(s) placed.") % {"count": len(created_orders)})
+
+        if latest_invoice is not None and latest_invoice.balance_tzs > 0:
+            summary = ", ".join(f"{o.test.code} {o.test.name}" for o in created_orders)
             notify_role(
                 ["RECEPTIONIST", "FINANCE"],
                 exclude_actor=request.user,
                 kind="PAYMENT_REQUIRED",
                 level="WARNING",
                 title=_("Lab payment to collect"),
-                body=f"{encounter.patient.full_name} · {test.code} {test.name} · {invoice.balance_tzs} TZS",
-                url=f"/billing/invoices/{invoice.pk}/",
+                body=f"{encounter.patient.full_name} · {summary} · {latest_invoice.balance_tzs} TZS",
+                url=f"/billing/invoices/{latest_invoice.pk}/",
                 entity_type="Invoice",
-                entity_id=invoice.pk,
+                entity_id=latest_invoice.pk,
             )
         return redirect("encounters:detail", pk=encounter.pk)
     return render(request, "lab/order_new.html", {

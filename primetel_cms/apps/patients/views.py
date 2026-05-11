@@ -4,6 +4,7 @@ List/search, registration, chart, edit, flag toggle, photo upload.
 """
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
@@ -50,6 +51,8 @@ def patient_register(request):
                 patient.date_of_birth = None
             patient.save()
             messages.success(request, _("Patient registered successfully."))
+            if request.user.has_role("RECEPTIONIST"):
+                return redirect(f"/billing/invoices/new/?patient={patient.pk}")
             return redirect("patients:chart", pk=patient.pk)
     else:
         form = PatientRegistrationForm()
@@ -63,6 +66,9 @@ def patient_register(request):
 @login_required
 def patient_chart(request, pk):
     """Patient chart — tabbed view with timeline, encounters, prescriptions, labs, invoices."""
+    if request.user.has_role("RECEPTIONIST"):
+        raise PermissionDenied(_("Receptionists can register patients and manage payments, but cannot view full patient charts."))
+
     from apps.encounters.models import Encounter
     from apps.pharmacy.models import Prescription
     from apps.lab.models import LabOrder
@@ -117,7 +123,7 @@ def patient_chart(request, pk):
     })
 
 
-@requires_role("RECEPTIONIST", "NURSE", "CLINICIAN", "ADMIN")
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
 def patient_edit(request, pk):
     """Edit patient demographics."""
     patient = get_object_or_404(Patient, pk=pk)
@@ -167,7 +173,7 @@ def patient_flag(request, pk):
 
 
 @require_POST
-@requires_role("RECEPTIONIST", "NURSE", "CLINICIAN", "ADMIN")
+@requires_role("NURSE", "CLINICIAN", "ADMIN")
 def patient_photo(request, pk):
     """Upload or replace patient photo — HTMX endpoint."""
     patient = get_object_or_404(Patient, pk=pk)

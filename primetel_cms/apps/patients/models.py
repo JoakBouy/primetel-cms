@@ -26,7 +26,8 @@ class PatientManager(models.Manager):
 
     def search(self, query):
         """
-        Fuzzy search across full_name, phone, patient_number, national_id.
+        Fuzzy search across full_name, phone, patient_number, national_id,
+        and location fields.
         Falls back to icontains for SQLite (dev); uses trigram for Postgres (prod).
         """
         if not query:
@@ -45,6 +46,10 @@ class PatientManager(models.Manager):
                     | models.Q(phone_sim__gt=0.3)
                     | models.Q(patient_number__icontains=query)
                     | models.Q(national_id__icontains=query)
+                    | models.Q(location__icontains=query)
+                    | models.Q(village__icontains=query)
+                    | models.Q(ward__icontains=query)
+                    | models.Q(district__icontains=query)
                 )
                 .order_by("-name_sim")
             )
@@ -54,6 +59,10 @@ class PatientManager(models.Manager):
                 | models.Q(phone__icontains=query)
                 | models.Q(patient_number__icontains=query)
                 | models.Q(national_id__icontains=query)
+                | models.Q(location__icontains=query)
+                | models.Q(village__icontains=query)
+                | models.Q(ward__icontains=query)
+                | models.Q(district__icontains=query)
             )
 
 
@@ -97,7 +106,7 @@ class Patient(TimestampedModel):
 
     # Identity
     patient_number = models.CharField(
-        _("Patient Number"), max_length=20, unique=True, db_index=True
+        _("Patient Number"), max_length=50, unique=True, db_index=True
     )
     full_name = models.CharField(_("Full Name"), max_length=255)
     date_of_birth = models.DateField(_("Date of Birth"), null=True, blank=True)
@@ -126,6 +135,14 @@ class Patient(TimestampedModel):
         default="",
         db_index=True,
         help_text=_("E.164 format, e.g. +255712345678"),
+    )
+    location = models.CharField(
+        _("Location"),
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=_("Reception lookup location, landmark, or directions"),
     )
     village = models.CharField(_("Village"), max_length=100, blank=True, default="")
     ward = models.CharField(_("Ward"), max_length=100, blank=True, default="")
@@ -185,6 +202,7 @@ class Patient(TimestampedModel):
             models.Index(fields=["phone"]),
             models.Index(fields=["national_id"]),
             models.Index(fields=["full_name"]),
+            models.Index(fields=["location"]),
         ]
 
     def __str__(self):

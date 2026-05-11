@@ -133,6 +133,24 @@ def test_followup_after_finalised_encounter(patient_two, cashier, cons_new_servi
 
 
 @pytest.mark.django_db
+def test_first_antenatal_consultation_uses_new_patient_price(patient_two, cashier, cons_fu_service):
+    Encounter.objects.create(
+        patient=patient_two, clinician=cashier, encounter_type="GENERAL",
+        chief_complaint="x", assessment="y", status="FINALISED",
+    )
+    ServiceItem.objects.create(
+        code="CONS-ANC", name="First antenatal consultation",
+        category="CONSULT", unit_price_tzs=Decimal("5000"), is_active=True,
+    )
+
+    enc = Encounter.objects.create(patient=patient_two, clinician=cashier, encounter_type="ANC")
+
+    assert consultation_code(enc) == "CONS-ANC"
+    inv = auto_charge(enc, cashier)
+    assert inv.total_tzs == Decimal("5000")
+
+
+@pytest.mark.django_db
 def test_mh_consultation_uses_mh_price(patient_two, cashier):
     ServiceItem.objects.create(
         code="CONS-MH", name="MH consult", category="CONSULT",

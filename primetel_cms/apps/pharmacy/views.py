@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -554,6 +555,25 @@ def drug_toggle_active(request, pk):
         messages.success(request, _("Drug '%(n)s' reactivated.") % {"n": drug.generic_name})
     else:
         messages.success(request, _("Drug '%(n)s' deactivated.") % {"n": drug.generic_name})
+    return redirect("pharmacy:catalogue")
+
+
+@require_POST
+@requires_role("PHARMACY", "ADMIN")
+def drug_delete(request, pk):
+    """Delete a drug from the formulary when it has no protected history."""
+    drug = get_object_or_404(Drug, pk=pk)
+    label = str(drug)
+    try:
+        _audit(request, "DELETE", drug, change="delete_drug", drug=label)
+        drug.delete()
+        messages.success(request, _("Drug '%(n)s' deleted.") % {"n": label})
+    except ProtectedError:
+        messages.error(
+            request,
+            _("Drug '%(n)s' has prescription history and cannot be deleted. Edit it instead if details are wrong.")
+            % {"n": label},
+        )
     return redirect("pharmacy:catalogue")
 
 

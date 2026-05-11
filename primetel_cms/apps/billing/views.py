@@ -38,13 +38,19 @@ def _audit(request, action, obj, **metadata):
 def invoice_list(request):
     """Invoice list — filterable by status."""
     status = request.GET.get("status", "")
+    patient_id = request.GET.get("patient", "")
     qs = Invoice.objects.select_related("patient").order_by("-issued_at")
     if status:
         qs = qs.filter(status=status)
+    selected_patient = None
+    if patient_id:
+        selected_patient = get_object_or_404(Patient, pk=patient_id)
+        qs = qs.filter(patient=selected_patient)
     return render(request, "billing/invoices.html", {
         "page_title": _("Invoices"),
         "invoices": qs[:100],
         "current_status": status,
+        "selected_patient": selected_patient,
     })
 
 
@@ -70,10 +76,15 @@ def invoice_new(request):
             patient=patient, issued_by=request.user, created_by=request.user,
         )
         return redirect("billing:invoice_detail", pk=invoice.pk)
+    selected_patient = None
+    selected_patient_id = request.GET.get("patient")
+    if selected_patient_id:
+        selected_patient = get_object_or_404(Patient, pk=selected_patient_id)
     patients = Patient.objects.all()[:200]
     return render(request, "billing/invoice_new.html", {
         "page_title": _("New Invoice"),
         "patients": patients,
+        "selected_patient": selected_patient,
     })
 
 

@@ -5,16 +5,26 @@
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
     <div>
         <h1 class="text-2xl font-bold text-slate-800">{% trans "Invoices" %}</h1>
-        <p class="text-sm text-slate-500 mt-0.5">{% trans "Manage patient invoices and payments" %}</p>
+        <p class="text-sm text-slate-500 mt-0.5">
+            {% if selected_patient %}
+                {{ selected_patient.patient_number }} · {{ selected_patient.full_name }}
+            {% else %}
+                {% trans "Manage patient invoices and payments" %}
+            {% endif %}
+        </p>
     </div>
+    <a href="{% url 'billing:invoice_new' %}{% if selected_patient %}?patient={{ selected_patient.pk }}{% endif %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all" id="btn-invoice-new">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        {% trans "New invoice" %}
+    </a>
 </div>
 <!-- Status Filters -->
 <div class="flex gap-2 mb-4 overflow-x-auto">
-    <a href="{% url 'billing:invoice_list' %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if not current_status %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "All" %}</a>
-    <a href="?status=DRAFT" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'DRAFT' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Draft" %}</a>
-    <a href="?status=ISSUED" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'ISSUED' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Issued" %}</a>
-    <a href="?status=PAID" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Paid" %}</a>
-    <a href="?status=PARTIALLY_PAID" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PARTIALLY_PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Partial" %}</a>
+    <a href="{% url 'billing:invoice_list' %}{% if selected_patient %}?patient={{ selected_patient.pk }}{% endif %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if not current_status %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "All" %}</a>
+    <a href="?status=DRAFT{% if selected_patient %}&patient={{ selected_patient.pk }}{% endif %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'DRAFT' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Draft" %}</a>
+    <a href="?status=ISSUED{% if selected_patient %}&patient={{ selected_patient.pk }}{% endif %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'ISSUED' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Issued" %}</a>
+    <a href="?status=PAID{% if selected_patient %}&patient={{ selected_patient.pk }}{% endif %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Paid" %}</a>
+    <a href="?status=PARTIALLY_PAID{% if selected_patient %}&patient={{ selected_patient.pk }}{% endif %}" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors {% if current_status == 'PARTIALLY_PAID' %}bg-primary-50 text-primary-600{% else %}text-slate-500 hover:bg-slate-100{% endif %}">{% trans "Partial" %}</a>
 </div>
 {% endblock %}
 {% block content %}

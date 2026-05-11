@@ -51,14 +51,10 @@
                     <div class="flex items-center justify-end gap-2">
                         <a href="{% url 'pharmacy:drug_edit' d.pk %}" class="text-xs text-primary-600 hover:underline" id="drug-edit-{{ d.pk }}">{% trans "Edit" %}</a>
                         <a href="{% url 'pharmacy:stock_receive' d.pk %}" class="text-xs text-slate-500 hover:underline">+ {% trans "Receive" %}</a>
-                        <form method="post" action="{% url 'pharmacy:drug_toggle' d.pk %}" class="inline">
+                        <form method="post" action="{% url 'pharmacy:drug_delete' d.pk %}" class="inline">
                             {% csrf_token %}
-                            {% if d.is_active %}
-                            <button type="submit" class="text-xs text-danger-500 hover:underline" id="drug-deactivate-{{ d.pk }}"
-                                    onclick="return confirm('{% trans "Deactivate this drug? It will no longer appear in prescriptions." %}')">{% trans "Deactivate" %}</button>
-                            {% else %}
-                            <button type="submit" class="text-xs text-success-600 hover:underline" id="drug-activate-{{ d.pk }}">{% trans "Reactivate" %}</button>
-                            {% endif %}
+                            <button type="submit" class="text-xs text-danger-500 hover:underline" id="drug-delete-{{ d.pk }}"
+                                    onclick="return confirm('{% trans "Delete this drug from the formulary? This cannot be undone if it has no protected history." %}')">{% trans "Delete" %}</button>
                         </form>
                     </div>
                 </td>

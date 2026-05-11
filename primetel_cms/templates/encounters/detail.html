@@ -293,7 +293,7 @@
                 <h3 class="text-sm font-semibold text-slate-700">{% trans "Lab Orders" %}</h3>
                 {% if encounter.status != "FINALISED" %}
                 {% if consultation_paid %}
-                <a href="{% url 'lab:order_new' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-lab-order">+ {% trans "Order test" %}</a>
+                <a href="{% url 'lab:order_new' encounter.pk %}" class="text-xs font-medium text-primary-600 hover:underline" id="btn-lab-order">+ {% trans "Order tests" %}</a>
                 {% else %}
                 <span class="text-xs text-slate-400" title="{% trans 'Awaiting payment' %}">🔒 {% trans "Locked" %}</span>
                 {% endif %}

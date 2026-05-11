@@ -31,6 +31,16 @@ class PatientRegistrationForm(forms.ModelForm):
     Patient registration form — grouped into 5 sections per §6.2.
     """
 
+    patient_number = forms.CharField(
+        required=False,
+        label=_("Patient Number"),
+        widget=forms.TextInput(attrs={
+            "class": INPUT_CLASS,
+            "placeholder": _("Existing number or leave blank to auto-generate"),
+            "id": "id_patient_number",
+        }),
+    )
+
     # Toggle: age-only vs DOB
     age_only = forms.BooleanField(
         required=False,
@@ -41,8 +51,8 @@ class PatientRegistrationForm(forms.ModelForm):
     class Meta:
         model = Patient
         fields = [
-            "full_name", "sex", "date_of_birth", "estimated_age", "national_id", "photo",
-            "phone", "village", "ward", "district", "region",
+            "patient_number", "full_name", "sex", "date_of_birth", "estimated_age", "national_id", "photo",
+            "phone", "location", "village", "ward", "district", "region",
             "next_of_kin_name", "next_of_kin_phone", "next_of_kin_relationship",
             "language_preference", "is_pregnant", "chronic_conditions", "allergies",
             "notes",
@@ -60,6 +70,7 @@ class PatientRegistrationForm(forms.ModelForm):
             ),
             "national_id": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": _("National ID (optional)"), "id": "id_national_id"}),
             "phone": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": "+255712345678", "id": "id_phone"}),
+            "location": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": _("Location, landmark, or directions"), "id": "id_location"}),
             "village": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": _("Village name"), "id": "id_village"}),
             "ward": forms.TextInput(attrs={"class": INPUT_CLASS, "placeholder": _("Ward name"), "id": "id_ward"}),
             "district": forms.TextInput(attrs={"class": INPUT_CLASS, "id": "id_district"}),
@@ -87,6 +98,17 @@ class PatientRegistrationForm(forms.ModelForm):
 
         return cleaned
 
+    def clean_patient_number(self):
+        patient_number = (self.cleaned_data.get("patient_number") or "").strip()
+        if not patient_number:
+            return ""
+        existing = Patient.objects.filter(patient_number__iexact=patient_number)
+        if self.instance and self.instance.pk:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise forms.ValidationError(_("A patient with this number already exists. Search for the patient instead of registering again."))
+        return patient_number
+
 
 class PatientSearchForm(forms.Form):
     """Quick search form for patient list."""
@@ -95,7 +117,7 @@ class PatientSearchForm(forms.Form):
         label=_("Search"),
         widget=forms.TextInput(attrs={
             "class": INPUT_CLASS,
-            "placeholder": _("Search by name, phone, or patient number…"),
+            "placeholder": _("Search by name, phone, patient number, or location…"),
             "id": "search-input",
             "hx-get": "/patients/",
             "hx-trigger": "keyup changed delay:300ms",

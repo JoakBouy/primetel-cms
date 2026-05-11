@@ -9,6 +9,7 @@ Pricing rule (set by clinic admin):
 
 - New patient (no prior FINALISED encounters): 5000 TZS — code CONS-NEW
 - Follow-up:                                    3000 TZS — code CONS-FU
+- First antenatal consultation:                 5000 TZS — code CONS-ANC
 - Mental-health consultation:                  10000 TZS — code CONS-MH
 
 If the matching ServiceItem doesn't exist (catalogue not seeded), the
@@ -24,6 +25,7 @@ from decimal import Decimal
 DEFAULTS = {
     "CONS-NEW": ("New patient consultation", Decimal("5000")),
     "CONS-FU":  ("Follow-up consultation",   Decimal("3000")),
+    "CONS-ANC": ("First antenatal consultation", Decimal("5000")),
     "CONS-MH":  ("Mental health consultation", Decimal("10000")),
 }
 
@@ -33,10 +35,20 @@ def _is_new_patient(patient) -> bool:
     return not patient.encounters.filter(status="FINALISED").exists()
 
 
+def _is_first_antenatal(encounter) -> bool:
+    """The first FINALISED antenatal visit is priced like a new consultation."""
+    return not encounter.patient.encounters.filter(
+        encounter_type="ANC",
+        status="FINALISED",
+    ).exists()
+
+
 def consultation_code(encounter) -> str:
     """Pick the right service code for this encounter."""
     if encounter.encounter_type == "MENTAL_HEALTH":
         return "CONS-MH"
+    if encounter.encounter_type == "ANC" and _is_first_antenatal(encounter):
+        return "CONS-ANC"
     return "CONS-NEW" if _is_new_patient(encounter.patient) else "CONS-FU"
 
 

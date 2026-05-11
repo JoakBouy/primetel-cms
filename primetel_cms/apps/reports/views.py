@@ -10,6 +10,7 @@ from apps.encounters.models import Encounter, Diagnosis
 from apps.billing.models import Payment
 from apps.pharmacy.models import Prescription, Drug, StockItem, Dispense
 from apps.lab.models import LabOrder
+from apps.core.models import AuditLog
 
 from datetime import timedelta
 
@@ -106,5 +107,14 @@ def dashboard(request):
     # ── Lab scope: pending labs ──
     if nav.get("lab"):
         context["pending_labs"] = LabOrder.objects.filter(status__in=['ORDERED', 'COLLECTED']).count()
+
+    # ── Admin scope: recent interaction trail ──
+    if request.user.is_superuser or role_code == "ADMIN":
+        context["interactions_today"] = AuditLog.objects.filter(timestamp__gte=start_of_day).count()
+        context["recent_interactions"] = (
+            AuditLog.objects.select_related("actor")
+            .filter(timestamp__gte=seven_days_ago)
+            .order_by("-timestamp")[:12]
+        )
 
     return render(request, "reports/dashboard.html", context)
