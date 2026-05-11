@@ -6,7 +6,6 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
-from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_http_methods
 
 from .factory_reset import (
@@ -54,12 +53,6 @@ class AuditLogAdmin(admin.ModelAdmin):
 # anyone reading the page understands what to do, but specific enough that
 # muscle-memory confirmation clicks won't trigger a wipe.
 _CONFIRM_PHRASE = "WIPE"
-
-
-@method_decorator(staff_member_required, name="dispatch")
-class _Dummy:
-    """Unused — kept here so static analyzers stop complaining about imports."""
-    pass
 
 
 @require_http_methods(["GET", "POST"])

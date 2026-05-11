@@ -228,4 +228,30 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 UNFOLD = {
     "SITE_TITLE": "Primetel CMS",
     "SITE_HEADER": "Primetel CMS Admin",
+    # Sidebar customisation — adds a 'System' section with the factory reset
+    # link. The link is server-side-gated to superuser / ADMIN role inside
+    # the view itself; the `permission` callable here keeps it from rendering
+    # for non-eligible users so they never see it.
+    "SIDEBAR": {
+        "show_search": True,
+        "navigation": [
+            {
+                "title": "System",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "⚠ Factory reset",
+                        "icon": "delete_forever",
+                        "link": "/admin/system/factory-reset/",
+                        "permission": lambda request: (
+                            request.user.is_authenticated and (
+                                request.user.is_superuser
+                                or getattr(getattr(request.user, "role", None), "code", None) == "ADMIN"
+                            )
+                        ),
+                    },
+                ],
+            },
+        ],
+    },
 }
