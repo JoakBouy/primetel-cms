@@ -31,3 +31,4 @@ class LoginForm(AuthenticationForm):
             }
         ),
     )
+

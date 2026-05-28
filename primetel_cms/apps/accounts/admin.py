@@ -4,19 +4,27 @@ Primetel CMS — Accounts Admin
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
+from unfold.admin import ModelAdmin
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .models import Role, User
 
 
 @admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
+class RoleAdmin(ModelAdmin):
     list_display = ("display_name", "code", "description")
     search_fields = ("code", "display_name")
     readonly_fields = ("id",)
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(BaseUserAdmin, ModelAdmin):
+    # Unfold-compatible forms — required for the password change link and
+    # proper Tailwind styling in the admin.
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
+
     list_display = ("username", "full_name", "role", "language_preference", "is_active", "is_staff")
     list_filter = ("role", "language_preference", "is_active", "is_staff")
     search_fields = ("username", "full_name", "email", "phone")
@@ -42,3 +50,4 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
     )
+
