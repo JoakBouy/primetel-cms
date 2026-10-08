@@ -1,0 +1,34 @@
+{% load i18n %}
+{# Period selector shared by the reports pages. Expects `period`, `period_choices`. #}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card p-4 mb-6 space-y-3" id="period-picker">
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide mr-1">{% trans "Period" %}:</span>
+        {% for key, label in period_choices %}{% if key != "custom" %}
+        <a href="?period={{ key }}{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}"
+           class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors {% if period.kind == key %}bg-primary-600 text-white shadow-sm{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}"
+           id="period-{{ key }}">{{ label }}</a>
+        {% endif %}{% endfor %}
+        <details class="relative" {% if period.kind == "custom" %}open{% endif %}>
+            <summary class="list-none cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium {% if period.kind == 'custom' %}bg-primary-600 text-white shadow-sm{% else %}bg-white text-slate-600 border border-slate-200 hover:bg-slate-50{% endif %}" id="period-custom">{% trans "Custom range" %}</summary>
+            <form method="get" class="mt-2 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="period" value="custom">
+                <label class="text-xs text-slate-500">{% trans "From" %}
+                    <input type="date" name="start" value="{{ period.start|date:'Y-m-d' }}" required class="block rounded-lg border border-slate-200 px-2 py-1 text-sm">
+                </label>
+                <label class="text-xs text-slate-500">{% trans "To" %}
+                    <input type="date" name="end" value="{{ period.end|date:'Y-m-d' }}" required class="block rounded-lg border border-slate-200 px-2 py-1 text-sm">
+                </label>
+                <button class="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg">{% trans "Apply" %}</button>
+            </form>
+        </details>
+    </div>
+    <div class="flex items-center justify-between gap-3">
+        <a href="?{{ period.previous.query }}" class="px-3 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100" id="period-prev" aria-label="{% trans 'Previous period' %}">← {% trans "Previous" %}</a>
+        <p class="text-sm font-semibold text-slate-800 text-center" id="period-label">{{ period.label }}</p>
+        {% if period.is_current_or_future %}
+        <span class="px-3 py-1.5 text-sm text-slate-300">{% trans "Next" %} →</span>
+        {% else %}
+        <a href="?{{ period.next.query }}" class="px-3 py-1.5 text-sm rounded-lg text-slate-600 hover:bg-slate-100" id="period-next" aria-label="{% trans 'Next period' %}">{% trans "Next" %} →</a>
+        {% endif %}
+    </div>
+</div>

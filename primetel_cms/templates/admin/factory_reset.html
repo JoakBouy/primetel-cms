@@ -81,6 +81,7 @@
         <ul style="margin:0; padding-left:20px; color:#166534;">
             <li><strong>{{ kept.users }}</strong> user account{{ kept.users|pluralize }} (so staff can log in)</li>
             <li><strong>{{ kept.roles }}</strong> role record{{ kept.roles|pluralize }} (so permissions still apply)</li>
+            <li>The audit log (the reset itself is recorded in it)</li>
             <li>Migrations, sessions, admin log, content types</li>
         </ul>
     </div>
@@ -98,6 +99,12 @@
                    style="width:240px; padding:10px 12px; border:1px solid #D1D5DB; border-radius:8px;
                           font-size:16px; font-family:monospace;"
                    placeholder="{{ confirm_phrase }}">
+            <label for="password" style="display:block; font-weight:600; margin:16px 0 8px;">
+                Your password (re-authentication required):
+            </label>
+            <input type="password" name="password" id="password"
+                   autocomplete="current-password" required
+                   style="width:240px; padding:10px 12px; border:1px solid #D1D5DB; border-radius:8px; font-size:16px;">
             <div style="margin-top:16px; display:flex; gap:12px;">
                 <button type="submit"
                         style="background:#DC2626; color:white; padding:10px 20px; border:0;

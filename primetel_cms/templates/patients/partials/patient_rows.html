@@ -8,6 +8,8 @@
             <th>{% trans "Age / Sex" %}</th>
             <th>{% trans "Phone" %}</th>
             <th>{% trans "Location" %}</th>
+            <th>{% trans "Visits" %}</th>
+            <th>{% trans "Last visit" %}</th>
             <th>{% trans "Flags" %}</th>
             <th class="text-right">{% trans "Actions" %}</th>
         </tr>
@@ -24,6 +26,8 @@
             </td>
             <td class="text-slate-500 text-sm font-mono">{{ patient.phone|default:"—" }}</td>
             <td class="text-slate-500 text-sm">{{ patient.location|default:patient.village|default:patient.district }}</td>
+            <td class="text-slate-600 text-sm font-mono">{{ patient.visit_count|default:0 }}</td>
+            <td class="text-slate-500 text-xs">{% if patient.last_visit %}{{ patient.last_visit|date:"d/m/Y" }}{% else %}—{% endif %}</td>
             <td>
                 <div class="flex flex-wrap gap-1">
                     {% if patient.is_minor %}
@@ -69,9 +73,10 @@
 </table>
 <div class="px-6 py-3 border-t border-slate-100 bg-slate-50/50">
     <p class="text-xs text-slate-400">
-        {% blocktrans with count=patients|length %}{{ count }} patient(s) found{% endblocktrans %}
+        {% blocktrans with count=total_count %}{{ count }} patient(s) found{% endblocktrans %}
     </p>
 </div>
+{% include "core/_pagination.html" %}
 {% else %}
 <div class="flex flex-col items-center justify-center py-20 text-center">
     <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">

@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -33,7 +33,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         db = settings.DATABASES["default"]
         engine = db["ENGINE"]
-        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         backup_dir = Path(getattr(settings, "BACKUP_DIR", Path(settings.BASE_DIR) / "backups"))
         backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -79,18 +79,28 @@ class Command(BaseCommand):
                 "--no-owner", "--no-acl", "--clean", "--if-exists",
             ]
 
+        # Stream pg_dump through gzip into a temp file and only rename it into
+        # place on success, so a failed dump never leaves a truncated backup
+        # that looks valid.
+        import gzip
+        import tempfile
+        partial = output.with_name(output.name + ".partial")
         try:
-            with open(output, "wb") as fp:
-                proc = subprocess.run(
-                    pg_dump_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    env=env, check=True,
-                )
-                # Gzip in-process so we don't depend on shell pipes.
-                import gzip
-                fp.write(gzip.compress(proc.stdout))
+            # stderr goes to a temp file so a chatty pg_dump can't block on a
+            # full pipe while we're draining stdout.
+            with tempfile.TemporaryFile() as err, subprocess.Popen(
+                pg_dump_cmd, stdout=subprocess.PIPE, stderr=err, env=env,
+            ) as proc, gzip.open(partial, "wb") as fp:
+                shutil.copyfileobj(proc.stdout, fp)
+                returncode = proc.wait()
+                err.seek(0)
+                stderr = err.read()
         except FileNotFoundError as e:
+            partial.unlink(missing_ok=True)
             raise CommandError(f"pg_dump not found on PATH: {e}")
-        except subprocess.CalledProcessError as e:
-            raise CommandError(f"pg_dump failed: {e.stderr.decode(errors='replace')}")
+        if returncode != 0:
+            partial.unlink(missing_ok=True)
+            raise CommandError(f"pg_dump failed: {stderr.decode(errors='replace')}")
+        partial.replace(output)
 
         self.stdout.write(self.style.SUCCESS(f"Postgres dump -> {output} ({output.stat().st_size} bytes)"))

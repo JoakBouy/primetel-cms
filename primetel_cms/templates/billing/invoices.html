@@ -46,6 +46,7 @@
             {% endfor %}
         </tbody>
     </table>
+    {% include "core/_pagination.html" %}
     {% else %}
     <div class="flex flex-col items-center py-16 text-center">
         <p class="text-sm text-slate-500">{% trans "No invoices found." %}</p>

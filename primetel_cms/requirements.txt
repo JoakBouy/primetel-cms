@@ -1,3 +1,5 @@
+# Production dependencies. Development/test tools live in requirements-dev.txt.
+
 # Django core
 Django>=5.0,<5.3
 djangorestframework>=3.15
@@ -19,6 +21,10 @@ django-simple-history>=3.7
 # Static files
 whitenoise>=6.7
 
+# Uploaded files on S3-compatible storage (Supabase Storage). Only used when
+# MEDIA_S3_BUCKET is set.
+django-storages[s3]>=1.14
+
 # PDF generation
 weasyprint>=62
 
@@ -27,15 +33,6 @@ Pillow>=10.4
 
 # Server
 gunicorn>=22
-
-# Testing
-pytest>=8.2
-pytest-django>=4.8
-pytest-cov>=5.0
-factory-boy>=3.3
-
-# Code quality
-ruff>=0.5
 
 # CORS (for API if needed)
 django-cors-headers>=4.4

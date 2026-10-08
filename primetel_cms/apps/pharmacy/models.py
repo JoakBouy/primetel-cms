@@ -60,13 +60,15 @@ class StockItem(TimestampedModel):
 
     @property
     def is_expired(self):
-        from datetime import date
-        return self.expiry_date < date.today()
+        from django.utils import timezone
+        return self.expiry_date < timezone.localdate()
 
     @property
     def is_near_expiry(self):
-        from datetime import date, timedelta
-        return self.expiry_date <= date.today() + timedelta(days=90)
+        from datetime import timedelta
+
+        from django.utils import timezone
+        return self.expiry_date <= timezone.localdate() + timedelta(days=90)
 
 
 class StockMovement(models.Model):
@@ -79,6 +81,7 @@ class StockMovement(models.Model):
     movement_type = models.CharField(max_length=10, choices=MOVEMENT_TYPES)
     quantity = models.IntegerField()
     reason = models.ForeignKey("core.ReasonCode", on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
     reference_id = models.UUIDField(null=True, blank=True)
     performed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     performed_at = models.DateTimeField(auto_now_add=True)
@@ -125,8 +128,31 @@ class Dispense(TimestampedModel):
         ordering = ["-dispensed_at"]
 
     def save(self, *args, **kwargs):
+        # Stock is deducted exactly once, when the dispense is first recorded.
+        # Re-saving an existing row (e.g. from the admin) must not deduct again.
+        if not self._state.adding:
+            super().save(*args, **kwargs)
+            return
+        from django.utils import timezone
+
         with transaction.atomic():
+            # Lock the prescription too, so two pharmacists dispensing the same
+            # Rx at once can't together exceed the prescribed quantity.
+            rx = Prescription.objects.select_for_update().get(pk=self.prescription_id)
             stock = StockItem.objects.select_for_update().get(pk=self.stock_item_id)
+            if stock.drug_id != rx.drug_id:
+                raise ValidationError(_("This batch is for a different drug."))
+            if stock.expiry_date < timezone.localdate():
+                raise ValidationError(
+                    _("Batch %(b)s expired on %(d)s and cannot be dispensed.")
+                    % {"b": stock.batch_number, "d": stock.expiry_date.strftime("%d/%m/%Y")}
+                )
+            already = sum(d.quantity_dispensed for d in rx.dispenses.all())
+            if already + self.quantity_dispensed > rx.quantity:
+                raise ValidationError(
+                    _("Cannot dispense more than the remaining quantity (%(r)s).")
+                    % {"r": max(rx.quantity - already, 0)}
+                )
             if stock.quantity_on_hand < self.quantity_dispensed:
                 raise ValidationError(
                     _("Cannot dispense %(qty)s — only %(avail)s in stock.") %
@@ -140,6 +166,7 @@ class Dispense(TimestampedModel):
                 quantity=-self.quantity_dispensed, reference_id=self.pk,
                 performed_by=self.dispensed_by,
             )
-            total = sum(d.quantity_dispensed for d in self.prescription.dispenses.all())
-            self.prescription.status = "DISPENSED" if total >= self.prescription.quantity else "PARTIALLY_DISPENSED"
-            self.prescription.save(update_fields=["status"])
+            total = already + self.quantity_dispensed
+            rx.status = "DISPENSED" if total >= rx.quantity else "PARTIALLY_DISPENSED"
+            rx.save(update_fields=["status"])
+            self.prescription.status = rx.status

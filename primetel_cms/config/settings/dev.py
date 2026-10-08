@@ -21,6 +21,9 @@ CSRF_COOKIE_SECURE = False
 
 # WhiteNoise in dev — serve static files
 STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
@@ -34,3 +37,6 @@ AXES_ENABLED = False
 
 # CORS — allow all in dev
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Factory reset is available locally for wiping test data.
+ALLOW_FACTORY_RESET = env.bool("ALLOW_FACTORY_RESET", default=True)  # noqa: F405

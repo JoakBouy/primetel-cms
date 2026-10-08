@@ -1,9 +1,16 @@
 """
 Seed essential clinical and operational data: ICD-10 (top outpatient subset
-relevant to a Tanzanian primary-care clinic), drugs + initial stock, lab tests
-with reference ranges, service items for billing, role taxonomy.
+relevant to a Tanzanian primary-care clinic), drugs, lab tests with reference
+ranges, service items for billing, reason codes, role taxonomy.
 
-Idempotent: run repeatedly without creating duplicates.
+Runs on every deploy, so it is strictly INSERT-ONLY: it never overwrites a
+row staff have edited (prices, reference ranges, active flags) and never
+creates stock.
+
+- Roles, ICD-10 codes, reason codes, service items: missing codes are added.
+- Lab test catalogue and drug formulary: seeded only when the table is empty
+  (first deploy, or right after a factory reset).
+- Stock batches: only with --demo-stock (local demos, never production).
 """
 from datetime import timedelta
 from decimal import Decimal
@@ -15,9 +22,10 @@ from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.billing.models import ServiceItem
+from apps.core.models import ReasonCode
 from apps.encounters.models import ICD10Code
 from apps.lab.models import LabTest
-from apps.pharmacy.models import Drug, StockItem
+from apps.pharmacy.models import Drug, StockItem, StockMovement
 
 
 # Expanded outpatient ICD-10 subset (~120 codes) covering the diagnoses most
@@ -155,24 +163,25 @@ ICD10_CODES = [
 
 
 # Lab tests with reference ranges where applicable.
-# (code, name, specimen, ref_min, ref_max, unit, price_tzs)
+# (code, name, specimen, ref_min, ref_max, unit, price_tzs, critical_low, critical_high)
+# Critical limits are common adult panic values; review them with the lab lead.
 LAB_TESTS = [
-    ("mRDT", "Malaria Rapid Diagnostic Test", "BLOOD", None, None, "", "2000"),
-    ("FBP", "Full Blood Picture", "BLOOD", None, None, "", "10000"),
-    ("HGB", "Haemoglobin", "BLOOD", "12.0", "16.0", "g/dL", "3000"),
-    ("WBC", "White Blood Cell Count", "BLOOD", "4.0", "11.0", "x10^9/L", "3000"),
-    ("PLT", "Platelet Count", "BLOOD", "150", "450", "x10^9/L", "3000"),
-    ("RBS", "Random Blood Sugar", "BLOOD", "70", "140", "mg/dL", "3000"),
-    ("FBS", "Fasting Blood Sugar", "BLOOD", "70", "100", "mg/dL", "3500"),
-    ("HBA1C", "Glycated Haemoglobin", "BLOOD", "4.0", "5.6", "%", "15000"),
-    ("CREAT", "Serum Creatinine", "BLOOD", "0.6", "1.2", "mg/dL", "5000"),
-    ("UrineRE", "Urine Routine Examination", "URINE", None, None, "", "3000"),
-    ("StoolRE", "Stool Routine Examination", "STOOL", None, None, "", "3000"),
-    ("Widal", "Widal Test (Typhoid)", "BLOOD", None, None, "", "5000"),
-    ("HIV", "HIV Rapid Test", "BLOOD", None, None, "", "0"),
-    ("UPT", "Urine Pregnancy Test", "URINE", None, None, "", "2000"),
-    ("HEPB", "Hepatitis B Surface Antigen", "BLOOD", None, None, "", "5000"),
-    ("VDRL", "Syphilis Screening (VDRL)", "BLOOD", None, None, "", "3000"),
+    ("mRDT", "Malaria Rapid Diagnostic Test", "BLOOD", None, None, "", "2000", None, None),
+    ("FBP", "Full Blood Picture", "BLOOD", None, None, "", "10000", None, None),
+    ("HGB", "Haemoglobin", "BLOOD", "12.0", "16.0", "g/dL", "3000", "7.0", "20.0"),
+    ("WBC", "White Blood Cell Count", "BLOOD", "4.0", "11.0", "x10^9/L", "3000", "2.0", "30.0"),
+    ("PLT", "Platelet Count", "BLOOD", "150", "450", "x10^9/L", "3000", "50", "1000"),
+    ("RBS", "Random Blood Sugar", "BLOOD", "70", "140", "mg/dL", "3000", "50", "400"),
+    ("FBS", "Fasting Blood Sugar", "BLOOD", "70", "100", "mg/dL", "3500", "50", "400"),
+    ("HBA1C", "Glycated Haemoglobin", "BLOOD", "4.0", "5.6", "%", "15000", None, None),
+    ("CREAT", "Serum Creatinine", "BLOOD", "0.6", "1.2", "mg/dL", "5000", None, "5.0"),
+    ("UrineRE", "Urine Routine Examination", "URINE", None, None, "", "3000", None, None),
+    ("StoolRE", "Stool Routine Examination", "STOOL", None, None, "", "3000", None, None),
+    ("Widal", "Widal Test (Typhoid)", "BLOOD", None, None, "", "5000", None, None),
+    ("HIV", "HIV Rapid Test", "BLOOD", None, None, "", "0", None, None),
+    ("UPT", "Urine Pregnancy Test", "URINE", None, None, "", "2000", None, None),
+    ("HEPB", "Hepatitis B Surface Antigen", "BLOOD", None, None, "", "5000", None, None),
+    ("VDRL", "Syphilis Screening (VDRL)", "BLOOD", None, None, "", "3000", None, None),
 ]
 
 
@@ -189,17 +198,58 @@ SERVICE_ITEMS = [
 ]
 
 
+# (code, display name, category)
+REASON_CODES = [
+    ("WAIVER-HARDSHIP", "Financial hardship", "WAIVER"),
+    ("WAIVER-EXEMPT", "Exempt group (under-5, elderly, pregnant)", "WAIVER"),
+    ("WAIVER-STAFF", "Staff / staff family", "WAIVER"),
+    ("WAIVER-OTHER", "Other (see note)", "WAIVER"),
+    ("ADJ-COUNT", "Stock count correction", "STOCK_ADJUSTMENT"),
+    ("ADJ-DAMAGE", "Damaged / broken", "STOCK_ADJUSTMENT"),
+    ("ADJ-EXPIRED", "Expired, written off", "STOCK_ADJUSTMENT"),
+    ("ADJ-LOSS", "Lost / missing", "STOCK_ADJUSTMENT"),
+    ("ADJ-OTHER", "Other (see note)", "STOCK_ADJUSTMENT"),
+]
+
+
+DRUGS = [
+    {"generic_name": "Paracetamol", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 500},
+    {"generic_name": "Amoxicillin", "strength": "500mg", "form": "CAPSULE", "unit_price_tzs": Decimal("200"), "low_stock_threshold": 200},
+    {"generic_name": "Artemether/Lumefantrine", "strength": "20/120mg", "form": "TABLET", "unit_price_tzs": Decimal("1500"), "low_stock_threshold": 100},
+    {"generic_name": "Ibuprofen", "strength": "400mg", "form": "TABLET", "unit_price_tzs": Decimal("150"), "low_stock_threshold": 300},
+    {"generic_name": "Ciprofloxacin", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("300"), "low_stock_threshold": 150},
+    {"generic_name": "Metronidazole", "strength": "400mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 200},
+    {"generic_name": "Oral Rehydration Salts (ORS)", "strength": "20.5g", "form": "OTHER", "unit_price_tzs": Decimal("500"), "low_stock_threshold": 100},
+    {"generic_name": "Salbutamol", "strength": "100mcg/dose", "form": "OTHER", "unit_price_tzs": Decimal("5000"), "low_stock_threshold": 50},
+    {"generic_name": "Omeprazole", "strength": "20mg", "form": "CAPSULE", "unit_price_tzs": Decimal("200"), "low_stock_threshold": 150},
+    {"generic_name": "Ceftriaxone", "strength": "1g", "form": "INJECTION", "unit_price_tzs": Decimal("2000"), "low_stock_threshold": 100},
+    {"generic_name": "Amlodipine", "strength": "5mg", "form": "TABLET", "unit_price_tzs": Decimal("150"), "low_stock_threshold": 200},
+    {"generic_name": "Metformin", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 200},
+]
+
+
 class Command(BaseCommand):
-    help = "Seed clinical and operational lookup tables (idempotent)."
+    help = "Seed clinical and operational lookup tables (insert-only; safe on every deploy)."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--demo-stock",
+            action="store_true",
+            help="Also create a random stock batch for drugs that have none. "
+                 "For local demos only; never use on a live pharmacy.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
         self.stdout.write("Starting database seeding...")
         self.seed_roles()
         self.seed_icd10()
-        self.seed_drugs()
-        self.seed_lab_tests()
+        self.seed_reason_codes()
         self.seed_service_items()
+        self.seed_lab_tests()
+        self.seed_drugs()
+        if options["demo_stock"]:
+            self.seed_demo_stock()
         self.stdout.write(self.style.SUCCESS("Seeding complete."))
 
     def seed_roles(self):
@@ -215,69 +265,65 @@ class Command(BaseCommand):
             f"ICD-10: {ICD10Code.objects.count() - before} added (total {ICD10Code.objects.count()})"
         ))
 
-    def seed_drugs(self):
-        drugs_data = [
-            {"generic_name": "Paracetamol", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 500},
-            {"generic_name": "Amoxicillin", "strength": "500mg", "form": "CAPSULE", "unit_price_tzs": Decimal("200"), "low_stock_threshold": 200},
-            {"generic_name": "Artemether/Lumefantrine", "strength": "20/120mg", "form": "TABLET", "unit_price_tzs": Decimal("1500"), "low_stock_threshold": 100},
-            {"generic_name": "Ibuprofen", "strength": "400mg", "form": "TABLET", "unit_price_tzs": Decimal("150"), "low_stock_threshold": 300},
-            {"generic_name": "Ciprofloxacin", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("300"), "low_stock_threshold": 150},
-            {"generic_name": "Metronidazole", "strength": "400mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 200},
-            {"generic_name": "Oral Rehydration Salts (ORS)", "strength": "20.5g", "form": "OTHER", "unit_price_tzs": Decimal("500"), "low_stock_threshold": 100},
-            {"generic_name": "Salbutamol", "strength": "100mcg/dose", "form": "OTHER", "unit_price_tzs": Decimal("5000"), "low_stock_threshold": 50},
-            {"generic_name": "Omeprazole", "strength": "20mg", "form": "CAPSULE", "unit_price_tzs": Decimal("200"), "low_stock_threshold": 150},
-            {"generic_name": "Ceftriaxone", "strength": "1g", "form": "INJECTION", "unit_price_tzs": Decimal("2000"), "low_stock_threshold": 100},
-            {"generic_name": "Amlodipine", "strength": "5mg", "form": "TABLET", "unit_price_tzs": Decimal("150"), "low_stock_threshold": 200},
-            {"generic_name": "Metformin", "strength": "500mg", "form": "TABLET", "unit_price_tzs": Decimal("100"), "low_stock_threshold": 200},
-        ]
-
-        today = timezone.now().date()
-        for d in drugs_data:
-            drug, created = Drug.objects.get_or_create(
-                generic_name=d["generic_name"],
-                strength=d["strength"],
-                defaults={
-                    "form": d["form"],
-                    "unit_price_tzs": d["unit_price_tzs"],
-                    "low_stock_threshold": d["low_stock_threshold"],
-                },
+    def seed_reason_codes(self):
+        for code, name, category in REASON_CODES:
+            ReasonCode.objects.get_or_create(
+                code=code, defaults={"display_name": name, "category": category},
             )
-            if created or not StockItem.objects.filter(drug=drug).exists():
-                qty = random.randint(d["low_stock_threshold"], d["low_stock_threshold"] * 3)
-                expiry = today + timedelta(days=random.randint(180, 730))
-                StockItem.objects.create(
-                    drug=drug,
-                    batch_number=f"BATCH-{random.randint(1000, 9999)}",
-                    quantity_on_hand=qty,
-                    expiry_date=expiry,
-                )
-        self.stdout.write(self.style.SUCCESS(f"Drugs: {Drug.objects.count()}"))
-
-    def seed_lab_tests(self):
-        for code, name, spec, lo, hi, unit, price in LAB_TESTS:
-            LabTest.objects.update_or_create(
-                code=code,
-                defaults={
-                    "name": name,
-                    "specimen_type": spec,
-                    "reference_range_min": Decimal(lo) if lo else None,
-                    "reference_range_max": Decimal(hi) if hi else None,
-                    "reference_unit": unit,
-                    "price_tzs": Decimal(price),
-                    "is_active": True,
-                },
-            )
-        self.stdout.write(self.style.SUCCESS(f"Lab tests: {LabTest.objects.count()}"))
+        self.stdout.write(self.style.SUCCESS(f"Reason codes: {ReasonCode.objects.count()}"))
 
     def seed_service_items(self):
         for code, name, category, price in SERVICE_ITEMS:
-            ServiceItem.objects.update_or_create(
+            ServiceItem.objects.get_or_create(
                 code=code,
-                defaults={
-                    "name": name,
-                    "category": category,
-                    "unit_price_tzs": Decimal(price),
-                    "is_active": True,
-                },
+                defaults={"name": name, "category": category, "unit_price_tzs": Decimal(price)},
             )
         self.stdout.write(self.style.SUCCESS(f"Service items: {ServiceItem.objects.count()}"))
+
+    def seed_lab_tests(self):
+        if LabTest.objects.exists():
+            self.stdout.write(f"Lab tests: catalogue exists ({LabTest.objects.count()}), left untouched")
+            return
+        for code, name, spec, lo, hi, unit, price, crit_lo, crit_hi in LAB_TESTS:
+            LabTest.objects.create(
+                code=code,
+                name=name,
+                specimen_type=spec,
+                reference_range_min=Decimal(lo) if lo else None,
+                reference_range_max=Decimal(hi) if hi else None,
+                critical_low=Decimal(crit_lo) if crit_lo else None,
+                critical_high=Decimal(crit_hi) if crit_hi else None,
+                reference_unit=unit,
+                price_tzs=Decimal(price),
+            )
+        self.stdout.write(self.style.SUCCESS(f"Lab tests: {LabTest.objects.count()} seeded"))
+
+    def seed_drugs(self):
+        if Drug.objects.exists():
+            self.stdout.write(f"Drugs: formulary exists ({Drug.objects.count()}), left untouched")
+            return
+        for d in DRUGS:
+            Drug.objects.create(**d)
+        self.stdout.write(self.style.SUCCESS(f"Drugs: {Drug.objects.count()} seeded (no stock)"))
+
+    def seed_demo_stock(self):
+        from django.contrib.auth import get_user_model
+
+        performer = get_user_model().objects.filter(is_superuser=True).first()
+        today = timezone.localdate()
+        created = 0
+        for drug in Drug.objects.filter(stock_items__isnull=True):
+            qty = random.randint(drug.low_stock_threshold, drug.low_stock_threshold * 3)
+            item = StockItem.objects.create(
+                drug=drug,
+                batch_number=f"DEMO-{random.randint(1000, 9999)}",
+                quantity_on_hand=qty,
+                expiry_date=today + timedelta(days=random.randint(180, 730)),
+            )
+            if performer is not None:
+                StockMovement.objects.create(
+                    stock_item=item, movement_type="RECEIVE", quantity=qty,
+                    performed_by=performer, notes="Demo stock (seed_data --demo-stock)",
+                )
+            created += 1
+        self.stdout.write(self.style.WARNING(f"Demo stock: {created} batch(es) created"))

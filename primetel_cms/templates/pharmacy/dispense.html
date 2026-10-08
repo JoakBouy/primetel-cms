@@ -24,8 +24,15 @@
         </div>
         {% endif %}
 
+        {% if expired_batches %}
+        <div class="mb-4 rounded-xl bg-warning-50 border border-warning-200 px-4 py-3 text-xs text-warning-700" id="expired-batches-warning">
+            ⚠ {% trans "Expired stock on the shelf (not dispensable):" %}
+            {% for b in expired_batches %}{{ b.batch_number }} ({{ b.quantity_on_hand }}, {% trans "exp." %} {{ b.expiry_date|date:"M Y" }}){% if not forloop.last %}, {% endif %}{% endfor %}.
+            {% trans "Write it off from the stock page." %}
+        </div>
+        {% endif %}
         {% if not batches %}
-        <p class="text-sm text-danger-600">{% trans "No stock available for this drug." %}</p>
+        <p class="text-sm text-danger-600">{% trans "No in-date stock available for this drug." %}</p>
         {% else %}
         <form method="post" class="space-y-4">
             {% csrf_token %}

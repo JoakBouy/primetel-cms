@@ -134,11 +134,17 @@ AUTH_PASSWORD_VALIDATORS = [
 # ──────────────────────────────────────────────
 # Sessions
 # ──────────────────────────────────────────────
-SESSION_COOKIE_AGE = 28800  # 8 hours (one clinic shift) — absolute upper bound
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_AGE = 28800  # 8 hours (one clinic shift) — absolute upper bound,
+# enforced server-side by IdleSessionTimeoutMiddleware from the session start.
+SESSION_SAVE_EVERY_REQUEST = False
 # Idle re-authentication window. Shorter than SESSION_COOKIE_AGE: protects
-# shared workstations where a user walks away mid-shift.
+# shared workstations where a user walks away mid-shift. Background HTMX polls
+# do not count as activity.
 IDLE_SESSION_SECONDS = env.int("IDLE_SESSION_SECONDS", default=15 * 60)
+
+# Number of reverse proxies in front of the app that append to
+# X-Forwarded-For (Render's load balancer = 1). 0 means trust REMOTE_ADDR only.
+TRUSTED_PROXY_COUNT = env.int("TRUSTED_PROXY_COUNT", default=0)
 
 # ──────────────────────────────────────────────
 # Internationalisation
@@ -150,7 +156,6 @@ LANGUAGES = [
 ]
 LOCALE_PATHS = [BASE_DIR / "locale"]
 USE_I18N = True
-USE_L10N = True
 
 TIME_ZONE = "Africa/Nairobi"
 USE_TZ = True
@@ -167,6 +172,11 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
+    # "default" must be listed explicitly: overriding STORAGES replaces the
+    # whole dict, and without it every file upload fails.
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
@@ -203,6 +213,16 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 0.25  # 15 minutes in hours
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
+# Resolve the client IP with the same proxy-aware logic as the audit log, so
+# lockouts can't be dodged with a forged X-Forwarded-For header.
+AXES_CLIENT_IP_CALLABLE = "apps.core.utils.get_client_ip"
+
+# ──────────────────────────────────────────────
+# Factory reset (admin "danger zone")
+# ──────────────────────────────────────────────
+# Off unless explicitly enabled. Turn on only for a pre-go-live wipe of test
+# data, then turn it off again.
+ALLOW_FACTORY_RESET = env.bool("ALLOW_FACTORY_RESET", default=False)
 
 # ──────────────────────────────────────────────
 # Django Simple History
@@ -214,7 +234,6 @@ SIMPLE_HISTORY_HISTORY_ID_USE_UUID = True
 # ──────────────────────────────────────────────
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
 CSRF_FAILURE_VIEW = "apps.core.views.csrf_failure"
 
 # ──────────────────────────────────────────────
@@ -229,9 +248,9 @@ UNFOLD = {
     "SITE_TITLE": "Primetel CMS",
     "SITE_HEADER": "Primetel CMS Admin",
     # Sidebar customisation — adds a 'System' section with the factory reset
-    # link. The link is server-side-gated to superuser / ADMIN role inside
-    # the view itself; the `permission` callable here keeps it from rendering
-    # for non-eligible users so they never see it.
+    # link. The link is server-side-gated (ALLOW_FACTORY_RESET + superuser /
+    # ADMIN role) inside the view itself; the `permission` callable here keeps
+    # it from rendering for non-eligible users so they never see it.
     "SIDEBAR": {
         "show_search": True,
         "navigation": [
@@ -243,12 +262,7 @@ UNFOLD = {
                         "title": "⚠ Factory reset",
                         "icon": "delete_forever",
                         "link": "/admin/system/factory-reset/",
-                        "permission": lambda request: (
-                            request.user.is_authenticated and (
-                                request.user.is_superuser
-                                or getattr(getattr(request.user, "role", None), "code", None) == "ADMIN"
-                            )
-                        ),
+                        "permission": "apps.core.admin.can_use_factory_reset",
                     },
                 ],
             },

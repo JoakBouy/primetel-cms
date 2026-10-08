@@ -1,8 +1,10 @@
 """Reports URLs — reports section."""
 from django.urls import path
-from django.views.generic import RedirectView
+
+from . import report_views
 
 app_name = "reports_section"
 urlpatterns = [
-    path("", RedirectView.as_view(url="/dashboard/", permanent=False), name="index"),
+    path("", report_views.reports_index, name="index"),
+    path("visits/", report_views.visit_register, name="visit_register"),
 ]

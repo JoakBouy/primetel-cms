@@ -2,25 +2,32 @@
 Factory-reset helpers.
 
 Shared between the `factory_reset` management command and the admin-panel
-button. Wipes operational + catalogue data; preserves users + roles.
+button. Wipes operational + catalogue data; preserves users, roles and the
+audit log (the reset itself is recorded there).
 
 Both entry points call `plan_factory_reset()` to compute counts and
 `run_factory_reset()` to actually execute. Run is wrapped in a single
-transaction so a mid-wipe error rolls back cleanly.
+transaction so a mid-wipe error rolls back cleanly; uploaded files (patient
+photos, attachments) are deleted only after the transaction commits.
 """
 from __future__ import annotations
 
+import logging
+
 from django.apps import apps
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 
 # (app_label, ModelName) pairs in delete order. Children before parents.
 # Each tuple's history shadow table (if any) is wiped alongside.
+# AuditLog is deliberately absent: the audit trail must survive a reset.
 DELETE_ORDER = [
-    # Notifications + audit
+    # Notifications
     ("core", "Notification"),
-    ("core", "AuditLog"),
 
     # Pharmacy — dispenses → prescriptions → stock movements → stock items → drugs
     ("pharmacy", "Dispense"),
@@ -96,11 +103,34 @@ def plan_factory_reset():
     return plan, live_total, history_total, kept
 
 
+def _uploaded_file_names():
+    """Names of every stored file the wipe will orphan (photos, attachments)."""
+    from apps.encounters.models import EncounterAttachment
+    from apps.patients.models import Patient
+
+    names = set(
+        Patient.objects.all_including_deleted().exclude(photo="").exclude(photo__isnull=True)
+        .values_list("photo", flat=True)
+    )
+    names.update(EncounterAttachment.objects.exclude(file="").values_list("file", flat=True))
+    return names
+
+
+def _delete_files(names):
+    for name in names:
+        try:
+            default_storage.delete(name)
+        except Exception:
+            logger.exception("Factory reset: could not delete uploaded file %s", name)
+
+
 def run_factory_reset():
     """Execute the wipe atomically. Returns a summary list of
     (label, live_deleted, history_deleted) tuples."""
     summary = []
     with transaction.atomic():
+        file_names = _uploaded_file_names()
+        transaction.on_commit(lambda: _delete_files(file_names))
         for app_label, model_name in DELETE_ORDER:
             try:
                 model = apps.get_model(app_label, model_name)
@@ -122,3 +152,16 @@ def looks_like_production() -> bool:
     """Best-effort guess based on ALLOWED_HOSTS."""
     hosts = list(getattr(settings, "ALLOWED_HOSTS", []) or [])
     return any(any(p in str(h).lower() for p in _PROD_HOST_SIGNALS) for h in hosts)
+
+
+def record_factory_reset(summary, *, request=None, source):
+    """Write the reset into the (preserved) audit log."""
+    from .utils import audit
+
+    audit(
+        request,
+        "DELETE",
+        entity_type="FactoryReset",
+        source=source,
+        deleted={label: {"live": live, "history": hist} for label, live, hist in summary},
+    )

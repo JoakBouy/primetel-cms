@@ -14,28 +14,21 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
-from apps.core.models import AuditLog
+from apps.billing.services import bill_lab_order, remove_lab_charge
 from apps.core.notifications import notify_role, notify_user
 from apps.core.pdf import render_pdf
+from apps.core.utils import audit, parse_uuid
 from apps.encounters.models import Encounter
 
 from .models import LabOrder, LabResult, LabTest
 
 
-def _audit(request, action, obj, **metadata):
-    """Record an AuditLog entry for amendment-style changes."""
-    try:
-        AuditLog.objects.create(
-            actor=request.user,
-            action=action,
-            entity_type=obj.__class__.__name__,
-            entity_id=getattr(obj, "pk", None),
-            metadata=metadata,
-            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR") or request.META.get("REMOTE_ADDR") or "").split(",")[0].strip() or None,
-            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
-        )
-    except Exception:
-        pass
+def _orders_for_user(user):
+    """Lab, pharmacy and admin staff work every order; clinicians only see
+    orders on encounters they're allowed to open (mental-health rules)."""
+    if user.has_role("LAB", "PHARMACY", "ADMIN"):
+        return LabOrder.objects.all()
+    return LabOrder.objects.filter(encounter__in=Encounter.objects.for_user(user))
 
 
 def _invoice_for_order(order):
@@ -84,33 +77,11 @@ def _attach_payment_state(orders):
     return order_list
 
 
-def _bill_lab_order(order):
-    """Add a lab test line to the encounter invoice and reopen balance if needed."""
-    try:
-        from apps.billing.models import Invoice, InvoiceLine
-        invoice = Invoice.objects.filter(encounter_id=order.encounter_id).first()
-        if invoice is None or invoice.status in ("CANCELLED", "WAIVED"):
-            return None
-        InvoiceLine.objects.create(
-            invoice=invoice,
-            description=f"{order.test.code} {order.test.name}",
-            quantity=Decimal("1"),
-            unit_price_tzs=order.test.price_tzs or Decimal("0"),
-        )
-        invoice.recalculate()
-        if invoice.balance_tzs > 0 and invoice.status == "PAID":
-            invoice.status = "PARTIALLY_PAID"
-            invoice.save(update_fields=["status"])
-        return invoice
-    except Exception:
-        return None
-
-
 @requires_role("LAB", "CLINICIAN", "PHARMACY", "ADMIN")
 @never_cache
 def lab_queue(request):
     """Lab queue — tests awaiting processing (not yet resulted)."""
-    pending = LabOrder.objects.filter(
+    pending = _orders_for_user(request.user).filter(
         status__in=["ORDERED", "COLLECTED"]
     ).select_related("encounter__patient", "test", "ordered_by").order_by("ordered_at")
     return render(request, "lab/queue.html", {
@@ -123,7 +94,7 @@ def lab_queue(request):
 @never_cache
 def lab_results(request):
     """Processed lab tests — results entered (RESULTED) and clinician-reviewed (REVIEWED)."""
-    orders = LabOrder.objects.filter(
+    orders = _orders_for_user(request.user).filter(
         status__in=["RESULTED", "REVIEWED"]
     ).select_related("encounter__patient", "test", "result", "result__performed_by").order_by("-resulted_at", "-ordered_at")
     return render(request, "lab/results.html", {
@@ -137,7 +108,7 @@ def lab_results(request):
 def lab_order_detail(request, pk):
     """Lab order detail / result entry."""
     order = get_object_or_404(
-        LabOrder.objects.select_related("test", "encounter__patient", "ordered_by"), pk=pk
+        _orders_for_user(request.user).select_related("test", "encounter__patient", "ordered_by"), pk=pk
     )
     result = getattr(order, "result", None)
     flag = _compute_flag(order, result.value_numeric) if result and result.value_numeric is not None else None
@@ -147,6 +118,7 @@ def lab_order_detail(request, pk):
         "order": order,
         "result": result,
         "computed_flag": flag,
+        "flag_choices": LabResult.FLAG_CHOICES,
         "payment_invoice": invoice,
         "payment_is_paid": _invoice_is_paid(invoice),
     })
@@ -203,12 +175,20 @@ def lab_result_enter(request, pk):
         messages.error(request, _("Provide a numeric value or text result."))
         return redirect("lab:order_detail", pk=pk)
 
-    flag = _compute_flag(order, parsed_numeric)
+    flag = _resolve_flag(order, parsed_numeric, request.POST.get("flag"))
 
     with transaction.atomic():
         result, _created = LabResult.objects.update_or_create(
             lab_order=order,
             defaults={
+                "value_numeric": parsed_numeric,
+                "value_text": value_text,
+                "flag": flag,
+                "performed_by": request.user,
+                "notes": notes,
+                "updated_by": request.user,
+            },
+            create_defaults={
                 "value_numeric": parsed_numeric,
                 "value_text": value_text,
                 "flag": flag,
@@ -272,7 +252,7 @@ def lab_amend_result(request, pk):
     order.reviewed_at = None
     order.updated_by = request.user
     order.save(update_fields=["status", "reviewed_at", "updated_by", "updated_at"])
-    _audit(request, "UPDATE", order, change="amend_reviewed_result", reason=reason)
+    audit(request, "UPDATE", order, change="amend_reviewed_result", reason=reason)
     messages.success(request, _("Result reopened for correction. Reason recorded; previous values retained in history."))
     return redirect("lab:order_detail", pk=pk)
 
@@ -280,8 +260,12 @@ def lab_amend_result(request, pk):
 @require_POST
 @requires_role("CLINICIAN", "LAB", "ADMIN")
 def lab_cancel(request, pk):
-    """Cancel a mistakenly-ordered test. Only allowed before result entry."""
-    order = get_object_or_404(LabOrder, pk=pk)
+    """Cancel a mistakenly-ordered test. Only allowed before result entry.
+
+    The test's charge is removed from the encounter invoice and the full
+    reason goes to the audit log.
+    """
+    order = get_object_or_404(_orders_for_user(request.user), pk=pk)
     if order.status not in ("ORDERED", "COLLECTED"):
         messages.error(request, _("Only un-resulted orders can be cancelled. Resulted orders must be amended."))
         return redirect("lab:order_detail", pk=pk)
@@ -289,14 +273,26 @@ def lab_cancel(request, pk):
     if not reason:
         messages.error(request, _("A reason is required to cancel an order."))
         return redirect("lab:order_detail", pk=pk)
-    order.status = "CANCELLED"
-    order.external_reference = (
-        (order.external_reference + " | " if order.external_reference else "")
-        + f"CANCELLED by {request.user}: {reason}"
-    )[:100]
-    order.updated_by = request.user
-    order.save(update_fields=["status", "external_reference", "updated_by", "updated_at"])
+    with transaction.atomic():
+        order.status = "CANCELLED"
+        order.external_reference = (
+            (order.external_reference + " | " if order.external_reference else "")
+            + f"CANCELLED by {request.user}: {reason}"
+        )[:100]
+        order.updated_by = request.user
+        order.save(update_fields=["status", "external_reference", "updated_by", "updated_at"])
+        invoice = remove_lab_charge(order)
+    audit(request, "UPDATE", order, change="cancel_lab_order", reason=reason)
     messages.success(request, _("Order cancelled."))
+    if invoice is not None:
+        if invoice.balance_tzs < 0:
+            messages.warning(
+                request,
+                _("Charge removed from invoice %(n)s. The patient has paid %(c)s TZS more than they owe — refund or credit them.")
+                % {"n": invoice.invoice_number, "c": -invoice.balance_tzs},
+            )
+        else:
+            messages.info(request, _("Charge removed from invoice %(n)s.") % {"n": invoice.invoice_number})
     return redirect("lab:order_detail", pk=pk)
 
 
@@ -309,13 +305,17 @@ def lab_order_new(request, encounter_pk):
         return redirect("encounters:detail", pk=encounter.pk)
     tests = LabTest.objects.filter(is_active=True).order_by("name")
     if request.method == "POST":
-        test_ids = [pk for pk in (request.POST.getlist("tests") or request.POST.getlist("test")) if pk]
+        raw_ids = [pk for pk in (request.POST.getlist("tests") or request.POST.getlist("test")) if pk]
+        test_ids = {parse_uuid(pk) for pk in raw_ids}
+        if None in test_ids:
+            messages.error(request, _("One or more selected tests could not be found."))
+            return redirect("lab:order_new", encounter_pk=encounter.pk)
         if not test_ids:
             messages.error(request, _("Select at least one lab test."))
             return redirect("lab:order_new", encounter_pk=encounter.pk)
 
         selected_tests = list(LabTest.objects.filter(pk__in=test_ids, is_active=True).order_by("name"))
-        if len(selected_tests) != len(set(test_ids)):
+        if len(selected_tests) != len(test_ids):
             messages.error(request, _("One or more selected tests could not be found."))
             return redirect("lab:order_new", encounter_pk=encounter.pk)
 
@@ -328,7 +328,7 @@ def lab_order_new(request, encounter_pk):
                     encounter=encounter, test=test, ordered_by=request.user, created_by=request.user
                 )
                 created_orders.append(order)
-                latest_invoice = _bill_lab_order(order) or latest_invoice
+                latest_invoice = bill_lab_order(order) or latest_invoice
                 total_billed += test.price_tzs or Decimal("0")
 
         for order in created_orders:
@@ -379,7 +379,7 @@ def lab_order_new(request, encounter_pk):
 def lab_order_print(request, pk):
     """Printable lab requisition / report."""
     order = get_object_or_404(
-        LabOrder.objects.select_related("test", "encounter__patient", "ordered_by"), pk=pk
+        _orders_for_user(request.user).select_related("test", "encounter__patient", "ordered_by"), pk=pk
     )
     html = render_to_string("lab/order_print.html", {
         "order": order,
@@ -446,6 +446,8 @@ def lab_test_edit(request, pk):
             "specimen_type": test.specimen_type,
             "reference_range_min": test.reference_range_min or "",
             "reference_range_max": test.reference_range_max or "",
+            "critical_low": test.critical_low if test.critical_low is not None else "",
+            "critical_high": test.critical_high if test.critical_high is not None else "",
             "reference_unit": test.reference_unit,
             "price_tzs": test.price_tzs,
             "is_active": "on" if test.is_active else "",
@@ -477,7 +479,7 @@ def _populate_test(test: LabTest, data) -> LabTest:
     test.reference_unit = (data.get("reference_unit") or "").strip()
     test.is_active = data.get("is_active") == "on"
     test.is_send_out = data.get("is_send_out") == "on"
-    for field in ("reference_range_min", "reference_range_max", "price_tzs"):
+    for field in ("reference_range_min", "reference_range_max", "critical_low", "critical_high", "price_tzs"):
         raw = (data.get(field) or "").strip()
         if raw == "" or raw is None:
             setattr(test, field, None if field != "price_tzs" else Decimal(0))
@@ -488,26 +490,61 @@ def _populate_test(test: LabTest, data) -> LabTest:
             raise ValueError(f"{field} must be a number.")
     if not test.code or not test.name:
         raise ValueError("Code and name are required.")
+    if (
+        test.critical_low is not None and test.critical_high is not None
+        and test.critical_low >= test.critical_high
+    ):
+        raise ValueError("Critical low must be below critical high.")
     return test
 
 
+_FLAG_CODES = {code for code, _label in LabResult.FLAG_CHOICES}
+
+
 def _compute_flag(order: LabOrder, value):
-    """Auto-flag a numeric result against the test's reference range."""
+    """Auto-flag a numeric result against the test's reference and critical limits.
+
+    Explicit per-test critical limits are used when set. Otherwise a generic
+    fallback marks results far outside the reference range as CRITICAL.
+    """
     if value is None:
         return None
     test = order.test
     lo = test.reference_range_min
     hi = test.reference_range_max
+    crit_lo = test.critical_low
+    crit_hi = test.critical_high
+    if crit_lo is not None and value <= crit_lo:
+        return "CRITICAL"
+    if crit_hi is not None and value >= crit_hi:
+        return "CRITICAL"
     if lo is not None and value < lo:
-        # Critical if more than 25% below the lower bound
-        if lo > 0 and value < lo * Decimal("0.75"):
+        # Fallback: critical if more than 25% below the lower bound
+        if crit_lo is None and lo > 0 and value < lo * Decimal("0.75"):
             return "CRITICAL"
         return "LOW"
     if hi is not None and value > hi:
-        if value > hi * Decimal("1.5"):
+        if crit_hi is None and value > hi * Decimal("1.5"):
             return "CRITICAL"
         return "HIGH"
     return "NORMAL"
+
+
+def _resolve_flag(order: LabOrder, value, manual_flag):
+    """Final flag for a result.
+
+    Numeric results are flagged automatically; the technician may escalate
+    one to CRITICAL but never downgrade an automatic flag. Text results
+    (e.g. a positive malaria RDT) take the technician's flag.
+    """
+    manual = (manual_flag or "").strip().upper()
+    manual = manual if manual in _FLAG_CODES else None
+    if value is None:
+        return manual
+    computed = _compute_flag(order, value)
+    if manual == "CRITICAL":
+        return "CRITICAL"
+    return computed
 
 
 # ──────────────────────────────────────────────────────────────────

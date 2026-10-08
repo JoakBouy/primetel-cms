@@ -1,6 +1,7 @@
 """
 Primetel CMS — Core Admin
 """
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import HttpResponseForbidden
@@ -9,9 +10,22 @@ from django.urls import path, reverse
 from django.views.decorators.http import require_http_methods
 
 from .factory_reset import (
-    looks_like_production, plan_factory_reset, run_factory_reset,
+    looks_like_production, plan_factory_reset, record_factory_reset, run_factory_reset,
 )
 from .models import AuditLog, ConfigSetting, ReasonCode
+
+
+def _is_reset_admin(user):
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return getattr(getattr(user, "role", None), "code", None) == "ADMIN"
+
+
+def can_use_factory_reset(request):
+    """Unfold sidebar permission: only show the link when it would work."""
+    return bool(getattr(settings, "ALLOW_FACTORY_RESET", False)) and _is_reset_admin(request.user)
 
 
 @admin.register(ReasonCode)
@@ -61,33 +75,38 @@ def factory_reset_view(request):
     """Admin-only 'factory reset' page.
 
     GET  → renders the dry-run plan + a typed-confirmation form.
-    POST → if the typed phrase matches "WIPE", runs `run_factory_reset()`.
+    POST → if the typed phrase matches "WIPE" and the password is correct,
+           runs `run_factory_reset()` and records it in the audit log.
            Otherwise re-renders the form with an error.
 
-    Permission: superuser or staff with the `admin` role. Anyone else gets
-    a 403 (the `staff_member_required` decorator already redirects non-staff
-    to the admin login).
+    Availability: only when settings.ALLOW_FACTORY_RESET is on (off by
+    default in production). Permission: superuser or ADMIN role — staff
+    isn't enough; a finance person flagged as is_staff must not be able to
+    wipe the DB.
     """
-    # Tighter check than @staff_member_required: must be superuser or
-    # explicit ADMIN role. Staff isn't enough — a finance person flagged as
-    # is_staff should not be able to wipe the DB.
-    if not request.user.is_superuser:
-        role = getattr(request.user, "role", None)
-        if not role or getattr(role, "code", None) != "ADMIN":
-            return HttpResponseForbidden(
-                "Factory reset is restricted to superusers and ADMIN role."
-            )
+    if not getattr(settings, "ALLOW_FACTORY_RESET", False):
+        return HttpResponseForbidden(
+            "Factory reset is disabled. Set ALLOW_FACTORY_RESET=true to enable it temporarily."
+        )
+    if not _is_reset_admin(request.user):
+        return HttpResponseForbidden(
+            "Factory reset is restricted to superusers and ADMIN role."
+        )
 
     plan, live_total, history_total, kept = plan_factory_reset()
 
     if request.method == "POST":
         typed = (request.POST.get("confirm_phrase") or "").strip()
-        if typed != _CONFIRM_PHRASE:
-            messages.error(
-                request,
-                f'You must type "{_CONFIRM_PHRASE}" exactly to confirm. '
-                "Nothing was deleted.",
-            )
+        password_ok = request.user.check_password(request.POST.get("password") or "")
+        if typed != _CONFIRM_PHRASE or not password_ok:
+            if typed != _CONFIRM_PHRASE:
+                messages.error(
+                    request,
+                    f'You must type "{_CONFIRM_PHRASE}" exactly to confirm. '
+                    "Nothing was deleted.",
+                )
+            else:
+                messages.error(request, "Incorrect password. Nothing was deleted.")
             return render(request, "admin/factory_reset.html", {
                 "title": "Factory reset",
                 "plan": plan,
@@ -99,12 +118,13 @@ def factory_reset_view(request):
             })
 
         summary = run_factory_reset()
+        record_factory_reset(summary, request=request, source="admin")
         wiped_live = sum(s[1] for s in summary)
         wiped_history = sum(s[2] for s in summary)
         messages.success(
             request,
             f"Factory reset complete. Deleted {wiped_live} live rows + "
-            f"{wiped_history} history rows. Users and roles preserved.",
+            f"{wiped_history} history rows. Users, roles and the audit log preserved.",
         )
         return redirect(reverse("admin:index"))
 

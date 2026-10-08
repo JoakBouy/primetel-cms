@@ -1,0 +1,21 @@
+{% load i18n query_tags %}
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="flex items-center justify-between gap-3 px-6 py-3 border-t border-slate-100 bg-slate-50/50" aria-label="{% trans 'Pagination' %}">
+    <p class="text-xs text-slate-500">
+        {% blocktrans with start=page_obj.start_index end=page_obj.end_index total=page_obj.paginator.count %}Showing {{ start }}–{{ end }} of {{ total }}{% endblocktrans %}
+    </p>
+    <div class="flex items-center gap-1">
+        {% if page_obj.has_previous %}
+        <a href="{% query_replace page=1 %}" {% if hx_target %}hx-get="{% query_replace page=1 %}" hx-target="{{ hx_target }}" hx-push-url="true"{% endif %} class="px-2.5 py-1.5 text-xs rounded-lg text-slate-600 hover:bg-slate-100">«</a>
+        <a href="{% query_replace page=page_obj.previous_page_number %}" {% if hx_target %}hx-get="{% query_replace page=page_obj.previous_page_number %}" hx-target="{{ hx_target }}" hx-push-url="true"{% endif %} class="px-2.5 py-1.5 text-xs rounded-lg text-slate-600 hover:bg-slate-100">{% trans "Previous" %}</a>
+        {% endif %}
+        <span class="px-3 py-1.5 text-xs font-medium text-slate-700">
+            {% blocktrans with n=page_obj.number total=page_obj.paginator.num_pages %}Page {{ n }} of {{ total }}{% endblocktrans %}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="{% query_replace page=page_obj.next_page_number %}" {% if hx_target %}hx-get="{% query_replace page=page_obj.next_page_number %}" hx-target="{{ hx_target }}" hx-push-url="true"{% endif %} class="px-2.5 py-1.5 text-xs rounded-lg text-slate-600 hover:bg-slate-100">{% trans "Next" %}</a>
+        <a href="{% query_replace page=page_obj.paginator.num_pages %}" {% if hx_target %}hx-get="{% query_replace page=page_obj.paginator.num_pages %}" hx-target="{{ hx_target }}" hx-push-url="true"{% endif %} class="px-2.5 py-1.5 text-xs rounded-lg text-slate-600 hover:bg-slate-100">»</a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}

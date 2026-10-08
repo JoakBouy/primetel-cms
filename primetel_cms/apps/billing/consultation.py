@@ -30,6 +30,11 @@ DEFAULTS = {
 }
 
 
+def prepay_kind(encounter_type) -> str:
+    """Invoice.prepay_type matching an encounter type."""
+    return "MENTAL_HEALTH" if encounter_type == "MENTAL_HEALTH" else "GENERAL"
+
+
 def _is_new_patient(patient) -> bool:
     """A patient is 'new' if they have no FINALISED encounters yet."""
     return not patient.encounters.filter(status="FINALISED").exists()
@@ -60,13 +65,14 @@ def prepay_consultation(patient, user, encounter_type="GENERAL") -> "Invoice | N
     after the payment is recorded.
 
     Idempotent per (patient, type): if there's already an unpaid prepaid
-    consultation invoice for this patient of the same encounter_type,
-    return it instead of creating a duplicate.
+    consultation invoice for this patient of the same kind, return it
+    instead of creating a duplicate.
     """
     from apps.billing.models import Invoice, InvoiceLine, ServiceItem
 
+    kind = prepay_kind(encounter_type)
     # Map encounter_type → service code, matching the auto_charge logic.
-    if encounter_type == "MENTAL_HEALTH":
+    if kind == "MENTAL_HEALTH":
         code = "CONS-MH"
     else:
         code = "CONS-NEW" if _is_new_patient(patient) else "CONS-FU"
@@ -76,12 +82,13 @@ def prepay_consultation(patient, user, encounter_type="GENERAL") -> "Invoice | N
         desc = service.name
         price = service.unit_price_tzs
 
-    # Re-use an existing unpaid prepay invoice for this patient if one is
-    # already pending, so spamming the button doesn't multiply charges.
+    # Re-use an existing unpaid prepay invoice of the same kind, so spamming
+    # the button doesn't multiply charges.
     existing = (
         Invoice.objects.filter(
             patient=patient,
             encounter__isnull=True,
+            prepay_type=kind,
             status__in=("DRAFT", "ISSUED", "PARTIALLY_PAID"),
         ).first()
     )
@@ -91,6 +98,7 @@ def prepay_consultation(patient, user, encounter_type="GENERAL") -> "Invoice | N
     invoice = Invoice.objects.create(
         patient=patient,
         encounter=None,
+        prepay_type=kind,
         issued_by=user,
         created_by=user,
     )
@@ -122,15 +130,16 @@ def auto_charge(encounter, user) -> "Invoice | None":  # noqa: F821
     if existing is not None:
         return existing
 
-    # If a "prepay" invoice was already created for this patient (e.g. by a
-    # nurse via Send-to-billing), attach the encounter to it instead of
-    # creating a duplicate. This is what makes the pay-first workflow
-    # consistent with the legacy auto-charge: the clinician's "Start Consult"
-    # picks up whatever invoice the front desk already opened.
+    # If a prepaid consultation invoice of the same kind was already created
+    # for this patient (Send-to-billing, MH referral, or a front-desk invoice
+    # with a consultation line), attach the encounter to it instead of
+    # creating a duplicate. Other front-desk invoices (pharmacy sales, lab
+    # walk-ins) are never picked up.
     prepay = (
         Invoice.objects.filter(
             patient=encounter.patient,
             encounter__isnull=True,
+            prepay_type=prepay_kind(encounter.encounter_type),
             status__in=("DRAFT", "ISSUED", "PARTIALLY_PAID", "PAID"),
         ).order_by("issued_at").first()
     )

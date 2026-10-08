@@ -3,7 +3,6 @@ Primetel CMS — Patients Models
 Patient registration, demographics, soft-delete, fuzzy search.
 """
 import uuid
-from datetime import date
 
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
@@ -69,11 +68,13 @@ class PatientManager(models.Manager):
 def generate_patient_number():
     """Auto-generate patient number in format PT-YYYY-NNNNNN."""
     from django.utils import timezone
-    year = timezone.now().year
+    year = timezone.localdate().year
     prefix = f"PT-{year}-"
+    # Only auto-generated numbers count: a hand-entered number such as
+    # "PT-2026-ABC" or one with extra digits must not reset the sequence.
     last = (
         Patient.objects.all_including_deleted()
-        .filter(patient_number__startswith=prefix)
+        .filter(patient_number__regex=rf"^PT-{year}-[0-9]{{6}}$")
         .order_by("-patient_number")
         .first()
     )
@@ -209,9 +210,22 @@ class Patient(TimestampedModel):
         return f"{self.patient_number} — {self.full_name}"
 
     def save(self, *args, **kwargs):
-        if not self.patient_number:
+        if self.patient_number:
+            super().save(*args, **kwargs)
+            return
+        # Auto-numbering is "last + 1"; two registrations at the same moment
+        # would collide on the unique constraint, so retry with the next number.
+        from django.db import IntegrityError, transaction
+        for attempt in range(5):
             self.patient_number = generate_patient_number()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                if attempt == 4:
+                    raise
+                self.patient_number = ""
 
     def soft_delete(self, user=None):
         from django.utils import timezone
@@ -225,7 +239,8 @@ class Patient(TimestampedModel):
     def age(self):
         """Current age in years."""
         if self.date_of_birth:
-            today = date.today()
+            from django.utils import timezone
+            today = timezone.localdate()
             dob = self.date_of_birth
             return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
         return self.estimated_age

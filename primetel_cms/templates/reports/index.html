@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% load i18n static humanize %}
+{% block title %}{% trans "Reports" %}{% endblock %}
+{% block extra_head_js %}
+<script src="{% static 'vendor/chart-4.4.4.min.js' %}"></script>
+{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Reports" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{{ period.start|date:"d M Y" }} → {{ period.end|date:"d M Y" }} · {% blocktrans count counter=period.days %}{{ counter }} day{% plural %}{{ counter }} days{% endblocktrans %}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        {% if can_view_register %}
+        <a href="{% url 'reports_section:visit_register' %}?{{ period.query }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all" id="btn-visit-register">
+            {% trans "Visit register" %}
+        </a>
+        {% endif %}
+        <a href="?{{ period.query }}&export=csv" class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all" id="btn-export-csv">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            {% trans "Export CSV" %}
+        </a>
+    </div>
+</div>
+{% include "reports/_period_picker.html" %}
+{% endblock %}
+
+{% block content %}
+{% if not sections %}
+<div class="bg-white rounded-2xl border border-slate-100 p-8 shadow-card text-center">
+    <p class="text-sm text-slate-500">{% trans "There are no reports for your role." %}</p>
+</div>
+{% else %}
+
+<!-- KPI strip: this period vs the previous one -->
+{% if kpis %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="report-kpis">
+    {% for k in kpis %}
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card">
+        <p class="text-xs text-slate-500">{{ k.label }}</p>
+        <p class="text-3xl font-bold text-slate-800 mt-1">{% if k.money %}{{ k.value|floatformat:0|intcomma }}{% else %}{{ k.value|intcomma }}{% endif %}</p>
+        <p class="text-[11px] mt-1 {% if k.change is None %}text-slate-400{% elif k.change >= 0 %}text-success-600{% else %}text-danger-600{% endif %}">
+            {% if k.change is None %}{% trans "No data for previous period" %}
+            {% else %}{% if k.change >= 0 %}▲{% else %}▼{% endif %} {{ k.change }}% {% trans "vs previous" %} ({% if k.money %}{{ k.previous|floatformat:0|intcomma }}{% else %}{{ k.previous|intcomma }}{% endif %}){% endif %}
+        </p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if trend %}
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-6">
+    <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Trend" %}</h3>
+    <div class="h-64"><canvas id="reportTrendChart" aria-label="{% trans 'Visits and revenue over the period' %}" role="img"></canvas></div>
+    {{ trend|json_script:"report-trend-data" }}
+</div>
+{% endif %}
+
+{% if clinical %}
+<!-- ── Clinical ─────────────────────────────────────────────── -->
+<h2 class="text-lg font-semibold text-slate-800 mb-3">{% trans "Clinical" %}</h2>
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6" id="clinical-cards">
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ clinical.visits|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Visits" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ clinical.unique_patients|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Patients seen" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-primary-700">{{ clinical.new_patients_seen|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "First-time patients" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ clinical.returning_patients|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Returning patients" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ clinical.new_registrations|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "New registrations" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold {% if clinical.open_drafts %}text-warning-600{% else %}text-slate-800{% endif %}">{{ clinical.open_drafts|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Still in draft" %}</p></div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Top diagnoses" %}</h3>
+        {% if clinical.top_diagnoses %}
+        <div class="space-y-3">
+            {% for d in clinical.top_diagnoses %}
+            <div>
+                <div class="flex justify-between gap-3 text-xs mb-1">
+                    <span class="text-slate-700 truncate">{% if d.icd10_code %}<span class="font-mono text-slate-400">{{ d.icd10_code }}</span> {% endif %}{{ d.description }}</span>
+                    <span class="font-semibold text-slate-800 shrink-0">{{ d.n }}</span>
+                </div>
+                <div class="h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-primary-500 rounded-full" style="width: {% widthratio d.n clinical.top_dx_max 100 %}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}<p class="text-sm text-slate-400">{% trans "No diagnoses recorded in this period." %}</p>{% endif %}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Patients seen by age and sex" %}</h3>
+        <table class="data-table w-full text-sm">
+            <thead><tr><th>{% trans "Age" %}</th>{% for s in clinical.demographics.sexes %}<th class="text-right">{{ s }}</th>{% endfor %}<th class="text-right">{% trans "Total" %}</th></tr></thead>
+            <tbody>
+                {% for row in clinical.demographics.rows %}
+                <tr><td>{{ row.band }}</td>{% for c in row.counts %}<td class="text-right font-mono">{{ c }}</td>{% endfor %}<td class="text-right font-mono font-semibold">{{ row.total }}</td></tr>
+                {% endfor %}
+                <tr class="bg-slate-50"><td class="font-semibold">{% trans "Total" %}</td>{% for t in clinical.demographics.totals %}<td class="text-right font-mono font-semibold">{{ t }}</td>{% endfor %}<td class="text-right font-mono font-bold">{{ clinical.unique_patients }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Visits by type" %}</h3>
+        {% if clinical.by_type %}
+        <table class="data-table w-full text-sm"><tbody>
+            {% for row in clinical.by_type %}<tr><td>{{ row.label }}</td><td class="text-right font-mono font-semibold">{{ row.n }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% else %}<p class="text-sm text-slate-400">{% trans "No visits in this period." %}</p>{% endif %}
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Visits by clinician" %}</h3>
+        {% if clinical.by_clinician %}
+        <table class="data-table w-full text-sm">
+            <thead><tr><th>{% trans "Clinician" %}</th><th class="text-right">{% trans "Visits" %}</th><th class="text-right">{% trans "Patients" %}</th></tr></thead>
+            <tbody>
+            {% for row in clinical.by_clinician %}<tr><td>{{ row.label }}</td><td class="text-right font-mono">{{ row.n }}</td><td class="text-right font-mono">{{ row.patients }}</td></tr>{% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p class="text-sm text-slate-400">{% trans "No visits in this period." %}</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if financial %}
+<!-- ── Financial ────────────────────────────────────────────── -->
+<h2 class="text-lg font-semibold text-slate-800 mb-3">{% trans "Financial" %}</h2>
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6" id="financial-cards">
+    <div class="bg-white rounded-2xl border border-success-100 p-4 shadow-card"><p class="text-2xl font-bold text-success-700">{{ financial.collected|floatformat:0|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Collected (net, TZS)" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ financial.billed|floatformat:0|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% blocktrans with n=financial.invoices_issued %}Billed on {{ n }} invoices{% endblocktrans %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-warning-600">{{ financial.waived|floatformat:0|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Waived (TZS)" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-danger-600">{{ financial.reversed|floatformat:0|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Voided payments (TZS)" %}</p></div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ financial.outstanding_total|floatformat:0|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% blocktrans with n=financial.outstanding_count %}Outstanding now ({{ n }} invoices){% endblocktrans %}</p></div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Payments by method" %}</h3>
+        {% if financial.by_method %}
+        <table class="data-table w-full text-sm">
+            <thead><tr><th>{% trans "Method" %}</th><th class="text-right">{% trans "Entries" %}</th><th class="text-right">TZS</th></tr></thead>
+            <tbody>{% for row in financial.by_method %}<tr><td>{{ row.label }}</td><td class="text-right font-mono">{{ row.n }}</td><td class="text-right font-mono font-semibold">{{ row.total|floatformat:0|intcomma }}</td></tr>{% endfor %}</tbody>
+        </table>
+        {% else %}<p class="text-sm text-slate-400">{% trans "No payments in this period." %}</p>{% endif %}
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Billed by category" %}</h3>
+        {% if financial.billed_by_category %}
+        <div class="space-y-3">
+            {% for row in financial.billed_by_category %}
+            <div>
+                <div class="flex justify-between text-xs mb-1"><span class="text-slate-700">{{ row.label }}</span><span class="font-semibold text-slate-800">{{ row.total|floatformat:0|intcomma }}</span></div>
+                <div class="h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-primary-500 rounded-full" style="width: {% widthratio row.total financial.billed_cat_max 100 %}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}<p class="text-sm text-slate-400">{% trans "Nothing billed in this period." %}</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if pharmacy %}
+<!-- ── Pharmacy ─────────────────────────────────────────────── -->
+<h2 class="text-lg font-semibold text-slate-800 mb-3">{% trans "Pharmacy" %}</h2>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="grid grid-cols-2 gap-4 lg:col-span-1" id="pharmacy-cards">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ pharmacy.rx_written }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Prescriptions written" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ pharmacy.rx_dispensed }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Prescriptions dispensed" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ pharmacy.units_dispensed|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Units dispensed" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold {% if pharmacy.stock_losses_units %}text-danger-600{% else %}text-slate-800{% endif %}">{{ pharmacy.stock_losses_units|intcomma }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Units written off / lost" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-warning-600">{{ pharmacy.low_stock_now }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Drugs low on stock (now)" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-warning-600">{{ pharmacy.expiring_90d_now }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Batches expiring ≤ 90 days" %}</p></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 lg:col-span-2">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Most dispensed drugs" %}</h3>
+        {% if pharmacy.top_drugs %}
+        <div class="space-y-3">
+            {% for d in pharmacy.top_drugs %}
+            <div>
+                <div class="flex justify-between text-xs mb-1"><span class="text-slate-700">{{ d.prescription__drug__generic_name }} {{ d.prescription__drug__strength }}</span><span class="font-semibold text-slate-800">{{ d.units|intcomma }} <span class="text-slate-400 font-normal">({{ d.n }} Rx)</span></span></div>
+                <div class="h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-primary-500 rounded-full" style="width: {% widthratio d.units pharmacy.top_drug_max 100 %}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}<p class="text-sm text-slate-400">{% trans "Nothing dispensed in this period." %}</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if lab %}
+<!-- ── Lab ──────────────────────────────────────────────────── -->
+<h2 class="text-lg font-semibold text-slate-800 mb-3">{% trans "Laboratory" %}</h2>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="grid grid-cols-2 gap-4 lg:col-span-1" id="lab-cards">
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ lab.orders }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Tests ordered" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{{ lab.resulted }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Resulted" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-warning-600">{{ lab.abnormal }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Abnormal" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-danger-600">{{ lab.critical }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Critical" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-800">{% if lab.tat_median_hours is not None %}{{ lab.tat_median_hours }}h{% else %}—{% endif %}</p><p class="text-xs text-slate-500 mt-1">{% trans "Median turnaround" %}</p></div>
+        <div class="bg-white rounded-2xl border border-slate-100 p-4 shadow-card"><p class="text-2xl font-bold text-slate-400">{{ lab.cancelled }}</p><p class="text-xs text-slate-500 mt-1">{% trans "Cancelled" %}</p></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6 lg:col-span-2">
+        <h3 class="text-sm font-semibold text-slate-800 mb-4">{% trans "Most requested tests" %}</h3>
+        {% if lab.top_tests %}
+        <div class="space-y-3">
+            {% for t in lab.top_tests %}
+            <div>
+                <div class="flex justify-between text-xs mb-1"><span class="text-slate-700"><span class="font-mono text-slate-400">{{ t.test__code }}</span> {{ t.test__name }}</span><span class="font-semibold text-slate-800">{{ t.n }}</span></div>
+                <div class="h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-primary-500 rounded-full" style="width: {% widthratio t.n lab.top_test_max 100 %}%"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}<p class="text-sm text-slate-400">{% trans "No tests ordered in this period." %}</p>{% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if trend %}
+<script>
+(function () {
+    var el = document.getElementById('reportTrendChart');
+    var src = document.getElementById('report-trend-data');
+    if (!el || !src || typeof Chart === 'undefined') return;
+    var t = JSON.parse(src.textContent);
+    var datasets = [];
+    if (t.visits) {
+        datasets.push({
+            type: 'bar', label: '{% trans "Visits" %}', data: t.visits, yAxisID: 'y',
+            backgroundColor: 'rgba(204, 34, 41, 0.15)', borderColor: '#CC2229',
+            borderWidth: 2, borderRadius: 6, borderSkipped: false,
+        });
+    }
+    if (t.revenue) {
+        datasets.push({
+            type: 'line', label: '{% trans "Collected (TZS)" %}', data: t.revenue,
+            yAxisID: t.visits ? 'y1' : 'y', borderColor: '#16a34a', backgroundColor: '#16a34a',
+            tension: 0.25, pointRadius: 2,
+        });
+    }
+    var scales = {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#94a3b8', precision: 0 } },
+    };
+    if (t.visits && t.revenue) {
+        scales.y1 = { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { font: { size: 11 }, color: '#16a34a' } };
+    }
+    new Chart(el, {
+        data: { labels: t.labels, datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { display: datasets.length > 1, labels: { boxWidth: 12, font: { size: 11 } } } },
+            scales: scales,
+        },
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

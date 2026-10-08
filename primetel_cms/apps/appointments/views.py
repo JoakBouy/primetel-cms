@@ -14,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import requires_role
+from apps.core.utils import parse_uuid
 from apps.patients.models import Patient
 
 from .models import Appointment, AppointmentType
@@ -70,6 +71,7 @@ def queue_view(request):
             Invoice.objects.filter(
                 patient_id__in=patient_ids,
                 encounter__isnull=True,
+                prepay_type="GENERAL",
                 status="PAID",
             ).values_list("patient_id", flat=True)
         )
@@ -102,7 +104,7 @@ def queue_summary(request):
 @requires_role("RECEPTIONIST", "NURSE", "ADMIN")
 def appointment_new(request):
     """Book a new appointment or walk-in."""
-    patient_pk = request.GET.get("patient")
+    patient_pk = parse_uuid(request.GET.get("patient"))
     patient = get_object_or_404(Patient, pk=patient_pk) if patient_pk else None
 
     clinicians = User.objects.filter(
@@ -111,7 +113,7 @@ def appointment_new(request):
     appointment_types = AppointmentType.objects.filter(is_active=True)
 
     if request.method == "POST":
-        patient_id = request.POST.get("patient_id")
+        patient_id = parse_uuid(request.POST.get("patient_id"))
         if not patient_id:
             # If the user entered an exact existing patient number but didn't
             # select the result row, reuse that patient instead of failing.
@@ -140,14 +142,14 @@ def appointment_new(request):
 
         apt_type = None
         type_pk = request.POST.get("appointment_type") or ""
-        if type_pk:
-            apt_type = AppointmentType.objects.filter(pk=type_pk, is_active=True).first()
+        if parse_uuid(type_pk):
+            apt_type = AppointmentType.objects.filter(pk=parse_uuid(type_pk), is_active=True).first()
         duration = apt_type.duration_minutes if apt_type else 15
 
         clinician = None
         clinician_pk = request.POST.get("clinician") or ""
-        if clinician_pk:
-            clinician = User.objects.filter(pk=clinician_pk, is_active=True).first()
+        if parse_uuid(clinician_pk):
+            clinician = User.objects.filter(pk=parse_uuid(clinician_pk), is_active=True).first()
 
         Appointment.objects.create(
             patient=patient,
@@ -172,7 +174,7 @@ def appointment_new(request):
     })
 
 
-@requires_role("RECEPTIONIST", "NURSE", "ADMIN", "CLINICIAN", "COUNSELLOR")
+@requires_role("RECEPTIONIST", "FINANCE", "NURSE", "ADMIN", "CLINICIAN", "COUNSELLOR")
 def patient_picker(request):
     """HTMX patient search — returns clickable rows that fill #patient_id."""
     query = (request.GET.get("q") or "").strip()

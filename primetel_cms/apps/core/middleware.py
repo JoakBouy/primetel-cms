@@ -2,24 +2,53 @@
 Primetel CMS — Core middleware.
 
 - AuditLogMiddleware: logs every authenticated request to AuditLog.
-- IdleTimeoutMiddleware: forces re-authentication after a period of inactivity,
-  separate from the absolute SESSION_COOKIE_AGE. Defaults to 15 minutes; tune
-  via settings.IDLE_SESSION_SECONDS.
+- IdleSessionTimeoutMiddleware: forces re-authentication after a period of
+  inactivity (settings.IDLE_SESSION_SECONDS, default 15 minutes) and after an
+  absolute session lifetime (settings.SESSION_COOKIE_AGE, one shift).
+
+Paths are compared after stripping the language prefix, so "/en/patients/..."
+and "/patients/..." are treated the same.
 """
 import re
 import time
+import uuid
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
+from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from .models import AuditLog
+from .utils import get_client_ip, strip_language_prefix
 
 
-# URL patterns that trigger specific audit entries
+# URL patterns that trigger specific audit entries (matched on the
+# language-neutral path).
 PATIENT_CHART_PATTERN = re.compile(r"^/patients/([0-9a-f-]+)/?$", re.IGNORECASE)
+
+# Background requests the browser fires on its own (HTMX polling). They must
+# not count as user activity, otherwise an open tab never goes idle.
+BACKGROUND_POLL_PATHS = (
+    "/api/notifications/badge/",
+    "/appointments/queue/summary/",
+)
+
+_AUDIT_SKIP = (
+    "/static/", "/media/", "/healthz/", "/health/", "/favicon", "/sw.js",
+) + BACKGROUND_POLL_PATHS
+
+# Paths exempted from the session timeouts (authentication itself, language, health).
+_IDLE_EXEMPT = ("/login/", "/logout/", "/healthz/", "/health/", "/i18n/", "/static/", "/sw.js")
+
+LAST_ACTIVITY_KEY = "_last_activity"
+SESSION_STARTED_KEY = "_session_started"
+
+
+def is_background_poll(path: str) -> bool:
+    return strip_language_prefix(path).startswith(BACKGROUND_POLL_PATHS)
 
 
 class AuditLogMiddleware:
@@ -38,33 +67,23 @@ class AuditLogMiddleware:
         if not hasattr(request, "user") or not request.user.is_authenticated:
             return response
 
-        # Skip static/media/admin/healthz requests AND noisy background polls.
-        # The bell badge polls every 30s per user and would otherwise generate
-        # an audit row per poll, bloating the table without adding signal.
-        path = request.path
-        if any(
-            path.startswith(prefix)
-            for prefix in [
-                "/static/", "/media/", "/healthz/", "/health/", "/favicon",
-                "/sw.js", "/api/notifications/badge/",
-            ]
-        ):
+        # Skip static/media/health requests AND noisy background polls — the
+        # bell badge polls every 30s per user and would otherwise generate an
+        # audit row per poll, bloating the table without adding signal.
+        path = strip_language_prefix(request.path)
+        if path.startswith(_AUDIT_SKIP):
             return response
 
         try:
-            self._log_request(request, response)
+            self._log_request(request, response, path)
         except Exception:
             # Never let audit logging break the application
             pass
 
         return response
 
-    def _log_request(self, request, response):
+    def _log_request(self, request, response, path):
         """Create an audit log entry based on the request."""
-        ip = self._get_client_ip(request)
-        user_agent = request.META.get("HTTP_USER_AGENT", "")
-
-        # Determine action based on HTTP method
         method_to_action = {
             "GET": "READ",
             "POST": "CREATE",
@@ -77,12 +96,11 @@ class AuditLogMiddleware:
         # Check for patient chart access specifically
         entity_type = "Request"
         entity_id = None
-        match = PATIENT_CHART_PATTERN.match(request.path)
+        match = PATIENT_CHART_PATTERN.match(path)
         if match:
             entity_type = "Patient"
             try:
-                import uuid as uuid_mod
-                entity_id = uuid_mod.UUID(match.group(1))
+                entity_id = uuid.UUID(match.group(1))
             except ValueError:
                 pass
             action = "READ"
@@ -97,44 +115,55 @@ class AuditLogMiddleware:
                 "method": request.method,
                 "status_code": response.status_code,
             },
-            ip_address=ip,
-            user_agent=user_agent[:500],  # Truncate long user agents
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
         )
-
-    def _get_client_ip(self, request):
-        """Extract client IP, accounting for proxies."""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR")
-
-
-# Paths exempted from idle-timeout (authentication itself, language, health).
-_IDLE_EXEMPT = ("/login/", "/logout/", "/healthz/", "/i18n/", "/static/", "/media/", "/sw.js")
 
 
 class IdleSessionTimeoutMiddleware:
     """
-    Logs the user out after `settings.IDLE_SESSION_SECONDS` of inactivity.
-    The SESSION_COOKIE_AGE remains the absolute upper bound; this is the
-    *idle* bound for shared clinical workstations.
+    Logs the user out after `settings.IDLE_SESSION_SECONDS` of inactivity, or
+    once the session is older than `settings.SESSION_COOKIE_AGE` regardless of
+    activity. Background polls are checked but never refresh the idle timer.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.idle_seconds = int(getattr(settings, "IDLE_SESSION_SECONDS", 15 * 60))
 
     def __call__(self, request):
-        if (
-            request.user.is_authenticated
-            and not any(request.path.startswith(p) for p in _IDLE_EXEMPT)
-        ):
+        user = getattr(request, "user", None)
+        path = strip_language_prefix(request.path)
+        if user is not None and user.is_authenticated and not path.startswith(_IDLE_EXEMPT):
+            idle_seconds = int(getattr(settings, "IDLE_SESSION_SECONDS", 15 * 60))
+            max_age = int(getattr(settings, "SESSION_COOKIE_AGE", 8 * 60 * 60))
             now = int(time.time())
-            last = request.session.get("_last_activity")
-            if last is not None and now - int(last) > self.idle_seconds:
+            session = request.session
+
+            started = session.get(SESSION_STARTED_KEY)
+            last = session.get(LAST_ACTIVITY_KEY)
+            idle_expired = last is not None and now - int(last) > idle_seconds
+            absolute_expired = started is not None and now - int(started) > max_age
+            if idle_expired or absolute_expired:
                 logout(request)
-                messages.info(request, _("You were signed out due to inactivity."))
-                return redirect("login")
-            # Update timestamp; SESSION_SAVE_EVERY_REQUEST flushes it.
-            request.session["_last_activity"] = now
+                if idle_expired:
+                    messages.info(request, _("You were signed out due to inactivity."))
+                else:
+                    messages.info(request, _("Your session has ended. Please sign in again."))
+                return self._login_redirect(request)
+
+            if started is None:
+                session[SESSION_STARTED_KEY] = now
+            if not path.startswith(BACKGROUND_POLL_PATHS):
+                session[LAST_ACTIVITY_KEY] = now
         return self.get_response(request)
+
+    @staticmethod
+    def _login_redirect(request):
+        login_url = reverse("login")
+        if request.headers.get("HX-Request"):
+            # A plain 302 would be followed inside the XHR and the login page
+            # swapped into a tiny badge; HX-Redirect makes HTMX navigate the tab.
+            response = HttpResponse(status=200)
+            response["HX-Redirect"] = login_url
+            return response
+        return redirect(login_url)

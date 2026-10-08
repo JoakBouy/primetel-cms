@@ -362,6 +362,33 @@
             </div>
         </div>
 
+        <!-- Documents (attachments) -->
+        <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden" id="attachments-panel">
+            <div class="px-5 py-3 border-b border-slate-100">
+                <h3 class="text-sm font-semibold text-slate-700">{% trans "Documents" %}</h3>
+            </div>
+            <div class="p-5 space-y-2">
+                {% for doc in attachments %}
+                <a href="{% url 'protected_media' doc.file.name %}" target="_blank" rel="noopener" class="flex items-center justify-between gap-2 p-2 bg-slate-50 rounded-lg hover:bg-slate-100">
+                    <span class="text-xs font-medium text-slate-800 truncate">📎 {{ doc.label }}</span>
+                    <span class="text-[10px] text-slate-400 shrink-0">{{ doc.uploaded_at|date:"d/m H:i" }}</span>
+                </a>
+                {% empty %}
+                <p class="text-xs text-slate-400 text-center py-1">{% trans "No documents attached" %}</p>
+                {% endfor %}
+                <form method="post" action="{% url 'encounters:attachment_upload' encounter.pk %}" enctype="multipart/form-data" class="pt-2 space-y-2" x-data="{ open: false }">
+                    {% csrf_token %}
+                    <button type="button" @click="open = !open" class="w-full py-2 text-xs font-medium text-primary-500 hover:bg-primary-50 rounded-lg transition-colors" id="btn-add-attachment">+ {% trans "Attach document" %}</button>
+                    <div x-show="open" x-transition class="space-y-2">
+                        <input type="text" name="label" maxlength="255" placeholder="{% trans 'Label, e.g. Referral letter' %}" class="form-input text-xs py-2">
+                        <input type="file" name="file" required accept="{{ attachment_extensions }}" class="block w-full text-xs text-slate-600" id="attachment-file">
+                        <p class="text-[10px] text-slate-400">{% blocktrans with ext=attachment_extensions %}Max 10 MB · {{ ext }}{% endblocktrans %}</p>
+                        <button type="submit" class="w-full btn btn-primary text-xs py-2 justify-center">{% trans "Upload" %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         {% if invoice %}
         <!-- Invoice (auto-charged consultation) -->
         <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">

@@ -184,7 +184,7 @@ def test_clinician_can_order_multiple_lab_tests(client, patient, clinician_with_
 
 
 @pytest.mark.django_db
-def test_encounter_dashboard_shows_lab_result(client, order, clinician, lab_user):
+def test_encounter_dashboard_shows_lab_result(client, order, clinician_with_role, lab_user):
     LabResult.objects.create(
         lab_order=order,
         value_numeric=Decimal("13.5"),
@@ -194,7 +194,8 @@ def test_encounter_dashboard_shows_lab_result(client, order, clinician, lab_user
     order.status = "RESULTED"
     order.save(update_fields=["status"])
 
-    client.force_login(clinician)
+    # Encounters are clinical records: the viewer needs a clinical role.
+    client.force_login(clinician_with_role)
     resp = client.get(reverse("encounters:detail", args=[order.encounter.pk]))
 
     assert resp.status_code == 200

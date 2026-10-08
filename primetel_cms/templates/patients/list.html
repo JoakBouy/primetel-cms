@@ -19,8 +19,15 @@
 {% endblock %}
 
 {% block content %}
-<!-- Search Bar -->
-<div class="bg-white rounded-2xl border border-slate-100 shadow-card p-4 mb-6">
+<!-- Search + filters -->
+<form method="get" action="{% url 'patients:list' %}"
+      class="bg-white rounded-2xl border border-slate-100 shadow-card p-4 mb-6 space-y-3"
+      id="patient-filter-form"
+      hx-get="{% url 'patients:list' %}"
+      hx-trigger="keyup changed delay:200ms from:#search-input, search from:#search-input, change"
+      hx-target="#patient-results"
+      hx-push-url="true"
+      hx-indicator="#search-spinner">
     <div class="relative">
         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,12 +36,8 @@
         </div>
         <input type="search" name="q" value="{{ query }}"
                class="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 focus:bg-white transition-all duration-200"
-               placeholder="{% trans 'Search by name, phone, or patient number…' %}"
-               id="search-input"
-               hx-get="{% url 'patients:list' %}"
-               hx-trigger="keyup changed delay:150ms, search"
-               hx-target="#patient-results"
-               hx-indicator="#search-spinner">
+               placeholder="{% trans 'Search by name, phone, patient number, or location…' %}"
+               id="search-input" autocomplete="off">
         <div id="search-spinner" class="htmx-indicator absolute inset-y-0 right-0 pr-4 flex items-center">
             <svg class="animate-spin w-5 h-5 text-primary-400" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -42,7 +45,35 @@
             </svg>
         </div>
     </div>
-</div>
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <select name="sex" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" id="filter-sex" aria-label="{% trans 'Sex' %}">
+            <option value="">{% trans "Any sex" %}</option>
+            {% for code, label in sex_choices %}<option value="{{ code }}" {% if request.GET.sex == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <select name="district" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" id="filter-district" aria-label="{% trans 'District' %}">
+            <option value="">{% trans "Any district" %}</option>
+            {% for d in districts %}<option value="{{ d }}" {% if request.GET.district == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+        <select name="flag" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" id="filter-flag" aria-label="{% trans 'Flag' %}">
+            <option value="">{% trans "Any flag" %}</option>
+            <option value="minor" {% if request.GET.flag == "minor" %}selected{% endif %}>{% trans "Under 18" %}</option>
+            <option value="pregnant" {% if request.GET.flag == "pregnant" %}selected{% endif %}>{% trans "Pregnant" %}</option>
+            <option value="allergy" {% if request.GET.flag == "allergy" %}selected{% endif %}>{% trans "Has allergies" %}</option>
+            <option value="chronic" {% if request.GET.flag == "chronic" %}selected{% endif %}>{% trans "Chronic condition" %}</option>
+        </select>
+        <select name="visited" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" id="filter-visited" aria-label="{% trans 'Visits' %}">
+            <option value="">{% trans "Any visit history" %}</option>
+            <option value="30d" {% if request.GET.visited == "30d" %}selected{% endif %}>{% trans "Seen in last 30 days" %}</option>
+            <option value="inactive" {% if request.GET.visited == "inactive" %}selected{% endif %}>{% trans "Not seen for 6+ months" %}</option>
+            <option value="never" {% if request.GET.visited == "never" %}selected{% endif %}>{% trans "Never seen" %}</option>
+        </select>
+        <select name="sort" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white col-span-2 md:col-span-1" id="filter-sort" aria-label="{% trans 'Sort' %}">
+            {% if query %}<option value="relevance" {% if sort == "relevance" %}selected{% endif %}>{% trans "Best match" %}</option>{% endif %}
+            {% for key, label in sort_options %}<option value="{{ key }}" {% if sort == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <noscript><button class="px-4 py-2 bg-primary-600 text-white text-sm rounded-xl">{% trans "Apply" %}</button></noscript>
+</form>
 
 <!-- Results Table -->
 <div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden" id="patient-results">

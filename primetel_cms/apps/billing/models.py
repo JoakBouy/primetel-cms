@@ -14,11 +14,19 @@ from apps.core.models import TimestampedModel
 
 def generate_invoice_number():
     from django.utils import timezone
-    year = timezone.now().year
+    year = timezone.localdate().year
     prefix = f"INV-{year}-"
-    last = Invoice.objects.filter(invoice_number__startswith=prefix).order_by("-invoice_number").first()
+    last = (
+        Invoice.objects.filter(invoice_number__regex=rf"^INV-{year}-[0-9]{{6}}$")
+        .order_by("-invoice_number")
+        .first()
+    )
     seq = int(last.invoice_number.split("-")[-1]) + 1 if last else 1
     return f"{prefix}{seq:06d}"
+
+
+# Statuses that accept no further payments or charges.
+CLOSED_STATUSES = ("CANCELLED", "WAIVED")
 
 
 class ServiceItem(models.Model):
@@ -59,6 +67,16 @@ class Invoice(TimestampedModel):
     amount_paid_tzs = models.DecimalField(max_digits=12, decimal_places=0, default=0)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="DRAFT", db_index=True)
     issued_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="issued_invoices")
+
+    # Set on consultation invoices paid up front, before the encounter exists.
+    # auto_charge only attaches an encounter to a prepay of the matching kind,
+    # so a pharmacy-only or lab-only invoice is never mistaken for a consult.
+    PREPAY_CHOICES = [
+        ("", _("Not a prepaid consultation")),
+        ("GENERAL", _("General consultation")),
+        ("MENTAL_HEALTH", _("Mental health consultation")),
+    ]
+    prepay_type = models.CharField(max_length=20, choices=PREPAY_CHOICES, blank=True, default="", db_index=True)
     history = HistoricalRecords()
 
     class Meta:
@@ -69,19 +87,49 @@ class Invoice(TimestampedModel):
         return f"{self.invoice_number} — {self.patient}"
 
     def save(self, *args, **kwargs):
-        if not self.invoice_number:
+        if self.invoice_number:
+            super().save(*args, **kwargs)
+            return
+        # Number generation is "last + 1"; if two invoices are created at the
+        # same moment the unique constraint rejects one — retry with the next.
+        from django.db import IntegrityError
+        for attempt in range(5):
             self.invoice_number = generate_invoice_number()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                if attempt == 4:
+                    raise
+                self.invoice_number = ""
 
     @property
     def balance_tzs(self):
         return self.total_tzs - self.amount_paid_tzs
 
+    @property
+    def is_closed(self):
+        return self.status in CLOSED_STATUSES
+
+    def sync_status(self):
+        """Derive the payment status from totals (no save)."""
+        if self.status in CLOSED_STATUSES:
+            return
+        if self.total_tzs > 0 and self.amount_paid_tzs >= self.total_tzs:
+            self.status = "PAID"
+        elif self.amount_paid_tzs > 0:
+            self.status = "PARTIALLY_PAID"
+        elif self.status in ("PAID", "PARTIALLY_PAID"):
+            # Everything paid was reversed — back to an open, unpaid invoice.
+            self.status = "ISSUED"
+
     def recalculate(self):
-        """Recalculate subtotal and total from lines."""
+        """Recalculate subtotal and total from lines and refresh the status."""
         self.subtotal_tzs = sum(line.line_total_tzs for line in self.lines.all())
         self.total_tzs = self.subtotal_tzs - self.discount_tzs
-        self.save(update_fields=["subtotal_tzs", "total_tzs"])
+        self.sync_status()
+        self.save(update_fields=["subtotal_tzs", "total_tzs", "status"])
 
 
 class InvoiceLine(models.Model):
@@ -92,6 +140,14 @@ class InvoiceLine(models.Model):
     description = models.CharField(max_length=255)
     quantity = models.DecimalField(max_digits=8, decimal_places=2, default=1)
     unit_price_tzs = models.DecimalField(max_digits=10, decimal_places=0)
+    # Source of an automatically billed line, so cancelling/editing the
+    # prescription or lab order can adjust the charge.
+    prescription = models.ForeignKey(
+        "pharmacy.Prescription", on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines",
+    )
+    lab_order = models.ForeignKey(
+        "lab.LabOrder", on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_lines",
+    )
 
     class Meta:
         verbose_name = _("Invoice Line")
@@ -117,6 +173,10 @@ class Payment(TimestampedModel):
     waiver_reason = models.ForeignKey("core.ReasonCode", on_delete=models.SET_NULL, null=True, blank=True)
     received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="received_payments")
     received_at = models.DateTimeField(auto_now_add=True)
+    # A void is recorded as a negative payment pointing at the original.
+    reverses = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="reversals",
+    )
     history = HistoricalRecords()
 
     class Meta:
@@ -126,16 +186,17 @@ class Payment(TimestampedModel):
     def __str__(self):
         return f"{self.method} {self.amount_tzs} TZS for {self.invoice}"
 
+    @property
+    def is_voided(self):
+        return self.reversals.exists()
+
     def save(self, *args, **kwargs):
         with transaction.atomic():
             # Lock the parent invoice so concurrent payments tally consistently.
             inv = Invoice.objects.select_for_update().get(pk=self.invoice_id)
-            if inv.status in ("CANCELLED", "WAIVED"):
+            if inv.status in CLOSED_STATUSES:
                 raise ValidationError(_("Cannot record a payment against a closed invoice."))
             super().save(*args, **kwargs)
             inv.amount_paid_tzs = sum(p.amount_tzs for p in inv.payments.all())
-            if inv.amount_paid_tzs >= inv.total_tzs and inv.total_tzs > 0:
-                inv.status = "PAID"
-            elif inv.amount_paid_tzs > 0:
-                inv.status = "PARTIALLY_PAID"
+            inv.sync_status()
             inv.save(update_fields=["amount_paid_tzs", "status"])

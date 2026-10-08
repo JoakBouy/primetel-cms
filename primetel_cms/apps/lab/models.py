@@ -23,6 +23,11 @@ class LabTest(models.Model):
     reference_range_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     reference_range_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     reference_unit = models.CharField(max_length=30, blank=True, default="")
+    # Panic values: a result at or beyond these is flagged CRITICAL and the
+    # ordering clinician gets an urgent alert. Leave blank to fall back to a
+    # generic rule (far outside the reference range).
+    critical_low = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    critical_high = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_tzs = models.DecimalField(max_digits=10, decimal_places=0, default=0)
     is_active = models.BooleanField(default=True)
     is_send_out = models.BooleanField(default=False, help_text="Performed externally")

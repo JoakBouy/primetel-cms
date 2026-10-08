@@ -49,15 +49,21 @@ Click **Deploy**. The build runs:
 
 ```
 pip install -r requirements.txt
+python manage.py compile_locales
 python manage.py collectstatic --noinput
 python manage.py migrate --noinput
-python manage.py seed_data        # ICD-10, drugs, labs, services, roles
+python manage.py seed_data        # roles, ICD-10, reason codes, services; labs/drugs if empty
 python manage.py bootstrap_admin  # creates admin from BOOTSTRAP_ADMIN_*
 gunicorn config.wsgi:application  # (start command)
 ```
 
-The seed and bootstrap steps are **idempotent** — they're safe to run on
-every deploy. `bootstrap_admin` only sets the password the first time;
+The seed and bootstrap steps are safe to run on every deploy.
+`seed_data` is **insert-only**: it adds missing roles, ICD-10 codes, reason
+codes and service items, and seeds the lab-test catalogue and drug formulary
+only when those tables are empty. It never changes a price, reference range
+or active flag that staff have edited, and it never creates stock (use
+`seed_data --demo-stock` on a local demo database only).
+`bootstrap_admin` only sets the password the first time;
 later builds leave the existing user alone (so editing
 `BOOTSTRAP_ADMIN_PASSWORD` later does nothing — change passwords via
 `/admin/` or via `manage.py changepassword` if you have a paid plan with
@@ -78,6 +84,29 @@ reachable immediately.
 > exactly what `seed_data` and `bootstrap_admin` are for. If you upgrade
 > later, you can use Shell directly for one-offs.
 
+## 4a. Uploaded files (patient photos, attachments) — required
+
+Render's disk is **wiped on every deploy**, so files saved locally are lost.
+Store uploads in a **private** Supabase Storage bucket instead:
+
+1. Supabase → Storage → create a bucket (e.g. `primetel-media`), **not public**.
+2. Project Settings → Storage → S3 Connection → create access keys.
+3. In Render, set `MEDIA_S3_BUCKET`, `MEDIA_S3_ENDPOINT_URL`
+   (`https://<ref>.supabase.co/storage/v1/s3`), `MEDIA_S3_REGION`,
+   `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`.
+
+Files are always served through the app at `/media/…`, which checks that
+the viewer is logged in, has a role, and (for attachments) may see that
+encounter. The bucket itself must never be public.
+
+## 4b. Factory reset
+
+The admin **Factory reset** page wipes patients, clinical, billing and
+catalogue data (users, roles and the audit log are kept, and the reset is
+recorded in the audit log). It is disabled unless `ALLOW_FACTORY_RESET=true`
+and also requires the admin's password. Enable it only for a deliberate
+pre-go-live wipe of test data, then set it back to `false`.
+
 ## 5. Backups
 
 **Free tier:** Render's free plan has no Cron Jobs. Use **Supabase's
@@ -95,6 +124,25 @@ schedule (cron / Task Scheduler) and store the output somewhere durable.
 
 Render Cron Jobs have ephemeral disk; pipe the dump to S3 or Supabase
 Storage if you need it offsite.
+
+Supabase database backups do **not** include Storage files — back up the
+media bucket separately (e.g. a periodic `aws s3 sync` against the S3
+endpoint).
+
+## 5a. Local development and tests
+
+```
+python -m venv .venv
+.venv\Scripts\activate          # Windows (source .venv/bin/activate elsewhere)
+pip install -r requirements-dev.txt
+python manage.py compile_locales
+python manage.py migrate
+python manage.py seed_data --demo-stock
+python -m pytest
+```
+
+Production installs only `requirements.txt`; test and lint tools live in
+`requirements-dev.txt`.
 
 ## 6. Health & monitoring
 

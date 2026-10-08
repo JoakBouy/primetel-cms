@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load i18n query_tags %}
+{% block title %}{% trans "Visit register" %}{% endblock %}
+
+{% block page_header %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{% trans "Visit register" %}</h1>
+        <p class="text-sm text-slate-500 mt-0.5">{% trans "Every patient visit in the period, with diagnoses." %}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <a href="{% url 'reports_section:index' %}?{{ period.query }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl shadow-sm hover:shadow transition-all">← {% trans "Reports" %}</a>
+        <a href="{% query_replace export='csv' page=None %}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all" id="btn-register-csv">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            {% trans "Export CSV" %}
+        </a>
+    </div>
+</div>
+{% include "reports/_period_picker.html" %}
+{% endblock %}
+
+{% block content %}
+<form method="get" class="bg-white rounded-2xl border border-slate-100 shadow-card p-4 mb-6 grid grid-cols-1 md:grid-cols-5 gap-2" id="register-filters">
+    {% if period.kind == "custom" %}
+    <input type="hidden" name="period" value="custom">
+    <input type="hidden" name="start" value="{{ period.start|date:'Y-m-d' }}">
+    <input type="hidden" name="end" value="{{ period.end|date:'Y-m-d' }}">
+    {% else %}
+    <input type="hidden" name="period" value="{{ period.kind }}">
+    <input type="hidden" name="date" value="{{ period.start|date:'Y-m-d' }}">
+    {% endif %}
+    <input type="search" name="q" value="{{ query }}" placeholder="{% trans 'Patient, number, phone or diagnosis…' %}" class="md:col-span-2 rounded-xl border border-slate-200 px-3 py-2 text-sm" id="register-q">
+    <select name="type" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" aria-label="{% trans 'Visit type' %}">
+        <option value="">{% trans "All visit types" %}</option>
+        {% for code, label in type_choices %}<option value="{{ code }}" {% if request.GET.type == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="status" class="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" aria-label="{% trans 'Status' %}">
+        <option value="">{% trans "Any status" %}</option>
+        {% for code, label in status_choices %}<option value="{{ code }}" {% if request.GET.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <div class="flex gap-2">
+        <select name="clinician" class="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" aria-label="{% trans 'Clinician' %}">
+            <option value="">{% trans "All clinicians" %}</option>
+            {% for c in clinicians %}<option value="{{ c.pk }}" {% if request.GET.clinician == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.full_name|default:c.username }}</option>{% endfor %}
+        </select>
+        <button class="px-4 py-2 bg-primary-600 text-white text-sm rounded-xl">{% trans "Filter" %}</button>
+    </div>
+</form>
+
+<div class="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden" id="visit-register">
+    {% if encounters %}
+    <div class="overflow-x-auto">
+    <table class="data-table w-full">
+        <thead>
+            <tr>
+                <th>{% trans "Date" %}</th>
+                <th>{% trans "Patient" %}</th>
+                <th>{% trans "Age / Sex" %}</th>
+                <th>{% trans "Type" %}</th>
+                <th>{% trans "Clinician" %}</th>
+                <th>{% trans "Chief complaint" %}</th>
+                <th>{% trans "Diagnoses" %}</th>
+                <th>{% trans "Status" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for enc in encounters %}
+            <tr class="hover:bg-primary-50/30 cursor-pointer" onclick="window.location='{% url 'encounters:detail' enc.pk %}'">
+                <td class="text-xs text-slate-500 whitespace-nowrap">{{ enc.started_at|date:"d/m/Y H:i" }}</td>
+                <td>
+                    <a href="{% url 'patients:chart' enc.patient.pk %}" onclick="event.stopPropagation()" class="font-medium text-slate-800 hover:text-primary-600">{{ enc.patient.full_name }}</a>
+                    <p class="font-mono text-[11px] text-primary-600">{{ enc.patient.patient_number }}</p>
+                </td>
+                <td class="text-xs text-slate-500 whitespace-nowrap">{{ enc.patient.age_display }} · {{ enc.patient.get_sex_display }}</td>
+                <td class="text-xs">{{ enc.get_encounter_type_display }}</td>
+                <td class="text-xs text-slate-600">{{ enc.clinician.full_name|default:enc.clinician.username }}</td>
+                <td class="text-xs text-slate-600 max-w-[16rem] truncate">{{ enc.chief_complaint|default:"—" }}</td>
+                <td class="text-xs text-slate-700">
+                    {% for d in enc.diagnoses.all %}<span class="block">{{ d }}</span>{% empty %}<span class="text-slate-400">—</span>{% endfor %}
+                </td>
+                <td><span class="badge badge-{{ enc.status|lower }} text-[10px]">{{ enc.get_status_display }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <div class="px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+        <p class="text-xs text-slate-400">{% blocktrans with count=total_count %}{{ count }} visit(s){% endblocktrans %}</p>
+    </div>
+    {% include "core/_pagination.html" %}
+    {% else %}
+    <div class="flex flex-col items-center py-16 text-center">
+        <p class="text-sm text-slate-500">{% trans "No visits match these filters in this period." %}</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

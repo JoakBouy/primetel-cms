@@ -1,13 +1,17 @@
 """
 Primetel CMS — Root URL Configuration
 """
-from django.conf import settings
+import logging
+
 from django.conf.urls.i18n import i18n_patterns
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 from django.views.generic import RedirectView, TemplateView
+
+from apps.core.views import protected_media
+
+logger = logging.getLogger(__name__)
 
 
 def healthz(request):
@@ -18,8 +22,10 @@ def healthz(request):
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
         return JsonResponse({"status": "ok", "database": "connected"})
-    except Exception as e:
-        return JsonResponse({"status": "error", "database": "disconnected", "details": str(e)}, status=503)
+    except Exception:
+        # Details go to the server log only — this endpoint is public.
+        logger.exception("Health check failed: database unreachable")
+        return JsonResponse({"status": "error", "database": "disconnected"}, status=503)
 
 
 urlpatterns = [
@@ -30,6 +36,8 @@ urlpatterns = [
     path("i18n/", include("django.conf.urls.i18n")),
     # Service worker
     path("sw.js", TemplateView.as_view(template_name="sw.js", content_type="application/javascript")),
+    # Uploaded files (patient photos, attachments) — login + role checked.
+    path("media/<path:path>", protected_media, name="protected_media"),
 ]
 
 urlpatterns += i18n_patterns(
@@ -52,7 +60,3 @@ urlpatterns += i18n_patterns(
     path("api/", include("apps.core.urls_api")),
     prefix_default_language=False,
 )
-
-# Serve media in development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -65,6 +65,10 @@
                             <input type="number" name="new_quantity" value="{{ b.quantity_on_hand }}"
                                    min="0" class="form-input text-xs py-1.5 w-24"
                                    placeholder="{% trans 'New qty' %}" required>
+                            <select name="reason_code" class="form-input text-xs py-1.5">
+                                <option value="">{% trans "Reason category…" %}</option>
+                                {% for r in stock_reasons %}<option value="{{ r.pk }}">{{ r.display_name }}</option>{% endfor %}
+                            </select>
                             <input type="text" name="reason" class="form-input text-xs py-1.5"
                                    placeholder="{% trans 'Reason (required)' %}" required>
                             <button type="submit"
@@ -86,4 +90,36 @@
     </div>
     {% endif %}
 </div>
+
+{% if movements %}
+<div class="mt-6 bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden" id="stock-movements">
+    <div class="px-6 py-4 border-b border-slate-100">
+        <h2 class="text-sm font-semibold text-slate-700">{% trans "Recent stock movements" %}</h2>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>{% trans "When" %}</th>
+                <th>{% trans "Batch" %}</th>
+                <th>{% trans "Type" %}</th>
+                <th>{% trans "Qty" %}</th>
+                <th>{% trans "Reason" %}</th>
+                <th>{% trans "By" %}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in movements %}
+            <tr>
+                <td class="text-xs text-slate-500">{{ m.performed_at|date:"d/m/Y H:i" }}</td>
+                <td class="font-mono text-xs">{{ m.stock_item.batch_number }}</td>
+                <td class="text-xs">{{ m.get_movement_type_display }}</td>
+                <td class="font-mono text-sm {% if m.quantity < 0 %}text-danger-600{% else %}text-success-600{% endif %}">{{ m.quantity }}</td>
+                <td class="text-xs text-slate-600">{% if m.reason %}{{ m.reason.display_name }}{% if m.notes %} — {% endif %}{% endif %}{{ m.notes|default:"" }}</td>
+                <td class="text-xs text-slate-500">{{ m.performed_by.full_name|default:m.performed_by.username }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endblock %}

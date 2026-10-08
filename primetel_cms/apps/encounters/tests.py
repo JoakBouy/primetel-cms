@@ -150,14 +150,15 @@ def test_nurse_blocked_from_encounter_until_patient_pays(client, nurse, patient)
 
 @pytest.mark.django_db
 def test_nurse_can_start_triage_after_payment_clears(client, nurse, patient, clinician):
-    """When reception has recorded a paid consultation invoice (encounter=null
-    + status=PAID), the nurse can start the encounter for triage. The new
-    encounter attaches to the paid invoice — no double charge."""
+    """When reception has recorded a paid consultation invoice (encounter=null,
+    prepay_type=GENERAL, status=PAID), the nurse can start the encounter for
+    triage. The new encounter attaches to the paid invoice — no double charge."""
     from apps.billing.models import Invoice, InvoiceLine, Payment
     from decimal import Decimal as _D
 
     inv = Invoice.objects.create(
-        patient=patient, encounter=None, issued_by=clinician, created_by=clinician,
+        patient=patient, encounter=None, prepay_type="GENERAL",
+        issued_by=clinician, created_by=clinician,
     )
     InvoiceLine.objects.create(
         invoice=inv, description="Consult prepay",

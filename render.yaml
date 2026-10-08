@@ -23,6 +23,27 @@ services:
       # Idle session timeout in seconds (default 900 = 15 minutes).
       - key: IDLE_SESSION_SECONDS
         value: "900"
+      # Proxies in front of the app that append to X-Forwarded-For. Render's
+      # load balancer = 1. Add 1 if you put Cloudflare (proxied) in front.
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      # Uploaded files (patient photos, attachments). Render's disk is wiped
+      # on every deploy, so point these at a PRIVATE Supabase Storage bucket
+      # (S3 compatible). Without them, uploads are lost on the next deploy.
+      - key: MEDIA_S3_BUCKET
+        sync: false
+      - key: MEDIA_S3_ENDPOINT_URL
+        sync: false
+      - key: MEDIA_S3_REGION
+        sync: false
+      - key: MEDIA_S3_ACCESS_KEY_ID
+        sync: false
+      - key: MEDIA_S3_SECRET_ACCESS_KEY
+        sync: false
+      # Admin "Factory reset" button. Keep false in production; set true only
+      # for a deliberate pre-go-live wipe, then set it back.
+      - key: ALLOW_FACTORY_RESET
+        value: "false"
       # Optional: set to a Sentry DSN to enable error reporting.
       # Leave blank to disable (the prod settings handle this gracefully).
       - key: SENTRY_DSN

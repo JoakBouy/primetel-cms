@@ -1,11 +1,13 @@
 """
 Primetel CMS — Core Views.
-System-level views: CSRF failure page, health check, notification bell.
+System-level views: CSRF failure page, protected media, notification bell.
 """
 import json
+import mimetypes
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
+from django.core.files.storage import default_storage
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -30,6 +32,50 @@ def csrf_failure(request, reason=""):
         "reason": reason,
     }, request=request)
     return HttpResponseForbidden(html)
+
+
+# ─── Uploaded files ────────────────────────────────────────────
+
+# Roles allowed to open encounter attachments (clinical documents).
+_ATTACHMENT_ROLES = ("NURSE", "CLINICIAN", "COUNSELLOR", "ADMIN")
+
+
+@login_required
+def protected_media(request, path):
+    """Serve an uploaded file only to logged-in staff allowed to see it.
+
+    Only files referenced by a database row are served, which also rules out
+    path tricks. Patient photos: any user with a role. Encounter attachments:
+    clinical roles, and only for encounters they can see (mental-health
+    restrictions apply).
+    """
+    from apps.encounters.models import Encounter, EncounterAttachment
+    from apps.patients.models import Patient
+
+    user = request.user
+    if not user.is_superuser and not getattr(user, "role_id", None):
+        raise Http404
+
+    if path.startswith("patient_photos/"):
+        if not Patient.objects.all_including_deleted().filter(photo=path).exists():
+            raise Http404
+    elif path.startswith("encounter_attachments/"):
+        attachment = EncounterAttachment.objects.filter(file=path).first()
+        if attachment is None or not user.has_role(*_ATTACHMENT_ROLES):
+            raise Http404
+        if not Encounter.objects.for_user(user).filter(pk=attachment.encounter_id).exists():
+            raise Http404
+    else:
+        raise Http404
+
+    try:
+        handle = default_storage.open(path, "rb")
+    except (FileNotFoundError, OSError):
+        raise Http404
+    content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    response = FileResponse(handle, content_type=content_type)
+    response["Cache-Control"] = "private, max-age=300"
+    return response
 
 
 # ─── Notification bell ─────────────────────────────────────────
@@ -70,7 +116,10 @@ def notifications_badge(request):
         recipient=request.user, is_read=False,
     )
     if last_poll is not None:
-        fresh_qs = fresh_qs.filter(created_at__gt=last_poll)
+        # >= not >: a notification created in the same clock tick as the
+        # previous poll would otherwise never pop. The browser de-duplicates
+        # toasts by id, so a repeat at the boundary is harmless.
+        fresh_qs = fresh_qs.filter(created_at__gte=last_poll)
     else:
         # First poll of this session — don't pop everything in the inbox as
         # toasts, just from this moment on.
@@ -132,21 +181,13 @@ def my_activity(request):
     the panel highlights *interactions* — actual actions the user took.
     """
     from .models import AuditLog
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    # Midnight in the clinic's timezone (not UTC).
+    today_start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Writes always count. Reads only count for patient chart views — those
     # are clinically meaningful (a user looked at a chart) versus, say,
-    # opening the appointments queue.
-    qs = (
-        AuditLog.objects.filter(actor=request.user, timestamp__gte=today_start)
-        .filter(
-            # Writes on anything — those are interactions.
-            # OR patient-chart reads (entity_type="Patient", action="READ").
-            # We can't easily express "OR" in a single .filter, so split:
-        )
-    )
-    # Just pull the user's actions for today, filter Python-side; volumes
-    # are small enough that this is fine.
+    # opening the appointments queue. Pull today's actions and filter
+    # Python-side; volumes are small enough that this is fine.
     actions = list(
         AuditLog.objects.filter(
             actor=request.user, timestamp__gte=today_start,

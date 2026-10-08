@@ -53,6 +53,18 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Critical low (panic value)" %}</label>
+                <input type="text" name="critical_low" value="{{ form_data.critical_low|default:'' }}" class="w-full rounded-xl border border-danger-200 px-3 py-2 text-sm" id="test-critical-low" placeholder="{% trans 'e.g. 7.0 for Hb' %}">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Critical high (panic value)" %}</label>
+                <input type="text" name="critical_high" value="{{ form_data.critical_high|default:'' }}" class="w-full rounded-xl border border-danger-200 px-3 py-2 text-sm" id="test-critical-high">
+            </div>
+            <p class="md:col-span-2 text-xs text-slate-500">{% trans "Results at or beyond these limits are flagged CRITICAL and the ordering clinician gets an urgent alert. Leave blank to use a generic rule (far outside the reference range)." %}</p>
+        </div>
+
         <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">{% trans "Price (TZS)" %}</label>
             <input type="number" name="price_tzs" min="0" step="1" value="{{ form_data.price_tzs|default:'0' }}" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" id="test-price">

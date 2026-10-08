@@ -15,7 +15,7 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.core.factory_reset import (
-    looks_like_production, plan_factory_reset, run_factory_reset,
+    looks_like_production, plan_factory_reset, record_factory_reset, run_factory_reset,
 )
 
 
@@ -60,8 +60,9 @@ class Command(BaseCommand):
             )
 
         summary = run_factory_reset()
+        record_factory_reset(summary, source="management_command")
         self.stdout.write(self.style.SUCCESS("\nWiped:"))
         for label, live, hist in summary:
             note = f" (+ {hist} history)" if hist else ""
             self.stdout.write(f"  {label:40s} {live} rows{note}")
-        self.stdout.write(self.style.SUCCESS("\nDone. Users and roles preserved."))
+        self.stdout.write(self.style.SUCCESS("\nDone. Users, roles and the audit log preserved."))

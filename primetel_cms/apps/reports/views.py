@@ -43,7 +43,9 @@ def dashboard(request):
     from apps.core.context_processors import _nav_visibility
     nav = _nav_visibility(request.user)
 
-    today = timezone.now().date()
+    # "Today" in the clinic's timezone — timezone.now().date() is the UTC date,
+    # which is still yesterday between 00:00 and 03:00 in Nairobi.
+    today = timezone.localdate()
     start_of_day = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
     seven_days_ago = start_of_day - timedelta(days=6)
 
@@ -86,8 +88,12 @@ def dashboard(request):
 
     # ── Billing scope: revenue today ──
     if nav.get("billing"):
+        # Cash actually collected: waivers are write-offs, not revenue.
+        # Voids (negative reversals) are included so they net out.
         context["revenue_today"] = (
-            Payment.objects.filter(received_at__gte=start_of_day).aggregate(Sum('amount_tzs'))['amount_tzs__sum']
+            Payment.objects.filter(received_at__gte=start_of_day)
+            .exclude(method="WAIVER")
+            .aggregate(Sum('amount_tzs'))['amount_tzs__sum']
             or 0
         )
 

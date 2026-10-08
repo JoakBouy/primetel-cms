@@ -16,7 +16,7 @@
             id="tab-{{ tab_id }}">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">{{ tab_icon|safe
                 }}</svg>
-            {{ tab_label }}r
+            {{ tab_label }}
         </a>
         {% endfor %}
     </nav>
@@ -26,6 +26,7 @@
     <p class="px-3 mb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{% trans "Quick Actions" %}
     </p>
     <nav class="space-y-1">
+        {% if can.start_consult %}
         <a href="/encounters/new/?patient={{ patient.pk }}"
             class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
             id="sidebar-start-consult">
@@ -37,6 +38,8 @@
             </div>
             {% trans "Anza Consult" %}
         </a>
+        {% endif %}
+        {% if can.book_appointment %}
         <a href="/appointments/new/?patient={{ patient.pk }}"
             class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
             id="sidebar-book-apt">
@@ -48,6 +51,8 @@
             </div>
             {% trans "Weka Miadi" %}
         </a>
+        {% endif %}
+        {% if can.invoices %}
         <a href="/billing/invoices/?patient={{ patient.pk }}"
             class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
             id="sidebar-invoices">
@@ -59,6 +64,8 @@
             </div>
             {% trans "Tazama Risiti" %}
         </a>
+        {% endif %}
+        {% if can.edit %}
         <a href="{% url 'patients:edit' patient.pk %}"
             class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all"
             id="sidebar-edit-patient">
@@ -70,11 +77,12 @@
             </div>
             {% trans "Edit Record" %}
         </a>
-        {% if user.role_code != 'COUNSELLOR' %}
+        {% endif %}
+        {% if can.refer_mh %}
         <form method="post" action="{% url 'encounters:refer_mh' patient.pk %}" class="block">
             {% csrf_token %}
             <button type="submit"
-                    onclick="return confirm('{% trans "Refer this patient to a psychologist? A 5,000 TZS mental health consultation invoice will be created." %}')"
+                    onclick="return confirm('{% trans "Refer this patient to a psychologist? A mental health consultation invoice will be created." %}')"
                     class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-slate-100 transition-all text-left"
                     id="sidebar-refer-mh">
                 <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
@@ -98,7 +106,7 @@
         <!-- Photo / Avatar -->
         <div class="shrink-0">
             {% if patient.photo %}
-            <img src="{{ patient.photo.url }}" alt="{{ patient.full_name }}"
+            <img src="{% url 'protected_media' patient.photo.name %}" alt="{{ patient.full_name }}"
                 class="w-16 h-16 rounded-2xl object-cover shadow-md ring-2 ring-white">
             {% else %}
             <div
@@ -166,7 +174,7 @@
 {% endblock %}
 
 {% block content %}
-{% if request.GET.intent == 'follow_up' and not open_draft and user.role_code in 'NURSE,CLINICIAN,COUNSELLOR,ADMIN' %}
+{% if request.GET.intent == 'follow_up' and not open_draft and can.clinical %}
 <div class="mb-4 flex items-center justify-between gap-3 rounded-2xl border-2 border-primary-200 bg-primary-50 px-4 py-3 shadow-sm" id="follow-up-banner">
     <div class="flex items-center gap-3 min-w-0">
         <div class="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center shrink-0">
@@ -241,11 +249,13 @@
                 </svg>
             </div>
             <p class="text-sm text-slate-500">{% trans "No clinical events recorded yet." %}</p>
+            {% if can.start_consult %}
             <a href="/encounters/new/?patient={{ patient.pk }}"
                 class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary-50 text-primary-600 text-sm font-medium rounded-xl hover:bg-primary-100 transition-colors"
                 id="start-first-encounter">
                 {% trans "Start First Consultation" %}
             </a>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -345,7 +355,20 @@
     </div>
     {% elif active_tab == "documents" %}
     <div class="bg-white rounded-2xl border border-slate-100 shadow-card p-6" id="tab-content-documents">
-        <p class="text-sm text-slate-500">{% trans "No documents uploaded." %}</p>
+        {% if documents %}
+        <div class="space-y-2">
+            {% for doc in documents %}
+            <a href="{% url 'protected_media' doc.file.name %}" target="_blank" rel="noopener" class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-colors">
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 truncate">📎 {{ doc.label }}</p>
+                    <p class="text-xs text-slate-500">{{ doc.uploaded_at|date:"d M Y H:i" }} · {{ doc.encounter.get_encounter_type_display }}{% if doc.uploaded_by %} · {{ doc.uploaded_by.full_name|default:doc.uploaded_by.username }}{% endif %}</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-500">{% trans "No documents uploaded. Attach documents from an encounter." %}</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>
