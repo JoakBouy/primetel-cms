@@ -75,6 +75,9 @@ if MEDIA_S3_BUCKET:
             "default_acl": None,
             "querystring_auth": True,
             "file_overwrite": False,
+            # Supabase's S3 endpoint needs path-style URLs (…/s3/<bucket>/<key>).
+            "addressing_style": "path",
+            "signature_version": "s3v4",
         },
     }
 else:
